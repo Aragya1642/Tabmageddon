@@ -18,10 +18,13 @@ test("normalization always creates legal twenty-point stats", () => {
 test("fallback cards are deterministic in mechanics and legal", () => {
   const first = fallbackCard(tabs[0]!);
   const second = fallbackCard(tabs[0]!);
+  const other = fallbackCard(tabs[1]!);
   assert.deepEqual(first.stats, second.stats);
   assert.equal(first.type, second.type);
   assert.equal(first.abilityId, second.abilityId);
   assert.equal(Object.values(first.stats).reduce((sum, stat) => sum + stat, 0), 20);
+  assert.notEqual(first.cardName, tabs[0]!.title);
+  assert.notEqual(first.roast, other.roast);
 });
 
 test("battle resolution produces one synchronized breakdown per player", () => {
@@ -49,6 +52,7 @@ test("battle resolution produces one synchronized breakdown per player", () => {
     code: "TEST",
     hostId: players[0]!.id,
     roundCount: 3,
+    selectionSeconds: 30,
     currentRound: 1,
     phase: "SELECTING",
     players,

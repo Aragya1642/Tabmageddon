@@ -25,6 +25,8 @@ function App() {
   const [room, setRoom] = useState<Room>();
   const [playerId, setPlayerId] = useState("");
   const [error, setError] = useState("");
+  const [deckOpen, setDeckOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const update = (nextRoom: Room) => setRoom(nextRoom);
@@ -38,6 +40,17 @@ function App() {
   }, []);
 
   const currentPlayer = room?.players.find((player) => player.id === playerId);
+
+  async function copyRoomCode() {
+    if (!room) return;
+    try {
+      await navigator.clipboard.writeText(room.code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError(`Copy failed. Room code: ${room.code}`);
+    }
+  }
 
   function acceptRoom(reply: RoomReply) {
     if (!reply.ok || !reply.playerId || !reply.room) {
@@ -53,7 +66,10 @@ function App() {
     <main>
       <header className="site-header">
         <div className="brand">TAB<span>MAGGEDON</span></div>
-        {room && <div className="room-pill">ROOM <b>{room.code}</b></div>}
+        <div className="header-actions">
+          {currentPlayer && currentPlayer.deck.length > 0 && <button onClick={() => setDeckOpen(true)}>VIEW MY DECK</button>}
+          {room && <button className="room-pill" onClick={() => void copyRoomCode()}>ROOM <b>{room.code}</b> <span>{copied ? "COPIED!" : "COPY"}</span></button>}
+        </div>
       </header>
       {error && <button className="error-banner" onClick={() => setError("")}>{error} ×</button>}
       {!room && <Landing onCreate={acceptRoom} onJoin={acceptRoom} />}
@@ -67,7 +83,21 @@ function App() {
       )}
       {room?.phase === "GAME_OVER" && <GameOver room={room} />}
       {room?.phase === "TAB_REHAB" && currentPlayer && <TabRehab me={currentPlayer} onError={setError} />}
+      {deckOpen && currentPlayer && <DeckOverlay player={currentPlayer} onClose={() => setDeckOpen(false)} />}
     </main>
+  );
+}
+
+function DeckOverlay({ player, onClose }: { player: Player; onClose: () => void }) {
+  return (
+    <div className="modal-backdrop deck-backdrop" role="presentation" onClick={onClose}>
+      <section className="deck-modal" role="dialog" aria-modal="true" aria-label="Your deck" onClick={(event) => event.stopPropagation()}>
+        <div className="section-heading"><div><p className="eyebrow">AVAILABLE ANYTIME</p><h2>Your deck</h2></div><button onClick={onClose}>CLOSE ×</button></div>
+        <div className="card-grid">
+          {player.deck.map((card) => <CardView key={card.id} card={card} used={player.usedCardIds.includes(card.id)} disabled />)}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -110,11 +140,19 @@ function Lobby({ room, me }: { room: Room; me: Player }) {
     <section className="panel">
       <div className="section-heading">
         <div><p className="eyebrow">ASSEMBLE YOUR SURVIVORS</p><h2>Lobby <span>{room.code}</span></h2></div>
-        <div className="round-select">
-          <label>Rounds</label>
-          <select disabled={!isHost || room.players.some((player) => player.deck.length > 0)} value={room.roundCount} onChange={(event) => socket.emit("SET_ROUND_COUNT", Number(event.target.value))}>
-            <option value={3}>3</option><option value={5}>5</option><option value={7}>7</option>
-          </select>
+        <div className="lobby-settings">
+          <div className="round-select">
+            <label>Rounds</label>
+            <select disabled={!isHost || room.players.some((player) => player.deck.length > 0)} value={room.roundCount} onChange={(event) => socket.emit("SET_ROUND_COUNT", Number(event.target.value))}>
+              <option value={3}>3</option><option value={5}>5</option><option value={7}>7</option>
+            </select>
+          </div>
+          <div className="round-select">
+            <label>Pick timer</label>
+            <select disabled={!isHost} value={room.selectionSeconds} onChange={(event) => socket.emit("SET_SELECTION_TIME", Number(event.target.value))}>
+              <option value={15}>15 sec</option><option value={30}>30 sec</option><option value={45}>45 sec</option><option value={60}>60 sec</option>
+            </select>
+          </div>
         </div>
       </div>
       <div className="player-list">
@@ -226,7 +264,7 @@ function CrisisPreview({ room, playerId }: { room: Room; playerId: string }) {
       <h2>You know what's coming.<br /><span>You just don't know when.</span></h2>
       <div className="crisis-grid">
         {room.crisisPool.map((crisis) => (
-          <div className="crisis-card" key={crisis.id}><span>⚠</span><h3>{crisis.name}</h3><p>{crisis.description}</p></div>
+          <div className="crisis-card" key={crisis.id}><span>⚠</span><h3>{crisis.name}</h3></div>
         ))}
       </div>
       {room.hostId === playerId ? <button className="primary big-action" onClick={() => socket.emit("BEGIN_BATTLE")}>BEGIN TABMAGGEDON</button> : <p className="center-note">The host is deciding when civilization ends…</p>}
@@ -245,7 +283,7 @@ function Battle({ room, me }: { room: Room; me: Player }) {
         <div className="sudden-banner">
           <p className="eyebrow">☠ SUDDEN DEATH ☠</p>
           <h2>Choose before fate chooses the crisis.</h2>
-          <div className="crisis-options">{room.suddenDeathOptions?.map((crisis) => <span key={crisis.id}>{crisis.name}<small>{crisis.stat} {crisis.direction}</small></span>)}</div>
+          <div className="crisis-options">{room.suddenDeathOptions?.map((crisis) => <span key={crisis.id}>{crisis.name}</span>)}</div>
         </div>
       ) : room.currentCrisis && (
         <div className="current-crisis">
@@ -253,6 +291,7 @@ function Battle({ room, me }: { room: Room; me: Player }) {
           <h2>{room.currentCrisis.name}</h2><p>{room.currentCrisis.description}</p>
         </div>
       )}
+      <SelectionTimer deadline={room.selectionDeadline} />
       <div className="lock-status">
         {room.players.filter((player) => !sudden || room.suddenDeathPlayerIds?.includes(player.id)).map((player) => (
           <span key={player.id} className={player.locked ? "locked" : ""}>{player.name} {player.locked ? "🔒 LOCKED" : "Choosing…"}</span>
@@ -272,6 +311,19 @@ function Battle({ room, me }: { room: Room; me: Player }) {
       )}
     </section>
   );
+}
+
+function SelectionTimer({ deadline }: { deadline?: number }) {
+  const [seconds, setSeconds] = useState(() => deadline ? Math.max(0, Math.ceil((deadline - Date.now()) / 1000)) : 0);
+  useEffect(() => {
+    if (!deadline) return;
+    const update = () => setSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    update();
+    const interval = window.setInterval(update, 200);
+    return () => window.clearInterval(interval);
+  }, [deadline]);
+  if (!deadline) return null;
+  return <div className={`selection-timer ${seconds <= 5 ? "urgent" : ""}`}><b>{seconds}</b><span>SECONDS TO LOCK</span></div>;
 }
 
 function Scoreboard({ room }: { room: Room }) {

@@ -22,6 +22,24 @@ const ABILITY_COPY: Record<AbilityId, [string, string]> = {
   TYPE_GUARD: ["Incognito Armor", "Ignore type disadvantage."],
   CHAOS: ["Clear Cache and Pray", "50% chance of +3; otherwise -1."],
 };
+const FALLBACK_NAMES: Record<CardType, string[]> = {
+  GRIND: ["Deadline Devourer", "The Productivity Theater", "Academic Weapon", "Inbox Final Boss", "The Unfinished Business"],
+  SOCIAL: ["Notification Necromancer", "The Reply-All Menace", "Parasocial Champion", "Group Chat Oracle", "The Discourse Machine"],
+  BRAINROT: ["The Infinite Scroll", "Autoplay's Chosen", "Dopamine Overdraft", "One More Video", "The Attention Vacuum"],
+  UTILITY: ["The Swiss Army Tab", "Answer Engine", "Bookmark in Denial", "The Helpful Hoarder", "Emergency Reference"],
+};
+const FALLBACK_ROASTS = [
+  "You called this research, but your search history calls it a cry for help.",
+  "This has survived three cleanup attempts through pure emotional blackmail.",
+  "Open long enough to become infrastructure, useful enough to avoid accountability.",
+  "You keep returning here like the next refresh contains personal growth.",
+  "Pinned in your browser and apparently also in your unresolved business.",
+  "A tiny rectangle carrying an unreasonable amount of your personality.",
+  "The browser equivalent of putting something on a chair instead of away.",
+  "You were definitely going to finish this right after one completely unrelated tab.",
+  "It started as a quick check and is now legally part of the desktop.",
+  "Somewhere beneath this tab is the task you originally opened Chrome to complete.",
+];
 
 function hashNumbers(input: string): number[] {
   return [...createHash("sha256").update(input).digest()];
@@ -59,18 +77,40 @@ function inferType(tab: BrowserTab, hash: number[]): CardType {
   return CARD_TYPES[hash[4]! % CARD_TYPES.length]!;
 }
 
+function titleToken(tab: BrowserTab): string {
+  const ignored = new Set([
+    "this", "that", "with", "from", "your", "home", "page", "google", "www",
+    ...tab.domain.toLowerCase().split(/[.-]/),
+  ]);
+  const words = tab.title.match(/[a-zA-Z][a-zA-Z0-9'-]{3,}/g) ?? [];
+  const token = words
+    .filter((word) => !ignored.has(word.toLowerCase()))
+    .sort((left, right) => right.length - left.length)[0];
+  if (!token) return "Unclosed";
+  return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+}
+
 export function fallbackCard(tab: BrowserTab): TabCard {
   const seed = `${tab.domain}|${tab.title}`;
   const hash = hashNumbers(seed);
   const abilityId = ABILITY_IDS[hash[5]! % ABILITY_IDS.length]!;
   const [abilityName, abilityDescription] = ABILITY_COPY[abilityId];
+  const type = inferType(tab, hash);
   const rawStats = Object.fromEntries(
     STAT_NAMES.map((name, index) => [name, 1 + (hash[index]! % 9)]),
   ) as Record<StatName, number>;
   const rarityRoll = hash[6]!;
   const rarity: Rarity =
     rarityRoll > 246 ? "MYTHIC" : rarityRoll > 210 ? "EPIC" : rarityRoll > 120 ? "RARE" : "COMMON";
-  const shortTitle = tab.title.trim().slice(0, 38) || tab.domain;
+  const token = titleToken(tab);
+  const baseName = FALLBACK_NAMES[type][hash[7]! % FALLBACK_NAMES[type].length]!;
+  const cardName = `${baseName}: ${token}`.slice(0, 48);
+  const rawRoast = tab.audible
+    ? `Still playing audio from ${tab.domain} because silence might reveal your choices.`
+    : tab.pinned
+      ? `Pinned on ${tab.domain}: ${FALLBACK_ROASTS[hash[8]! % FALLBACK_ROASTS.length]!.toLowerCase()}`
+      : `${FALLBACK_ROASTS[hash[8]! % FALLBACK_ROASTS.length]!} Apparently "${token}" was essential.`;
+  const roast = rawRoast.slice(0, 120);
 
   return {
     id: randomUUID(),
@@ -79,16 +119,14 @@ export function fallbackCard(tab: BrowserTab): TabCard {
     originalUrl: tab.url,
     domain: tab.domain,
     faviconUrl: tab.faviconUrl,
-    cardName: shortTitle,
-    type: inferType(tab, hash),
+    cardName,
+    type,
     stats: normalizeStats(rawStats, seed),
     rarity,
     abilityId,
     abilityName,
     abilityDescription,
-    roast: tab.audible
-      ? "It is making noise and pretending that is helpful."
-      : "You kept this open because closing it felt too final.",
+    roast,
     browserContext: {
       pinned: tab.pinned,
       audible: tab.audible,
@@ -141,7 +179,10 @@ Allowed abilities: ${ABILITY_IDS.join(", ")}.
 Allowed rarities: ${RARITIES.join(", ")}. Rarity is cosmetic; MYTHIC means unusual or hilarious.
 Stats are integers from 1 to 9 for ram, uselessness, shadiness, and aura. They should express semantic
 traits; a deterministic validator will rebalance them. Never invent mechanics.
-Keep cardName under 48 characters, abilityName under 40, and roast under 120.
+cardName must be an original, dramatic card nickname inspired by the page's meaning. Never copy or
+slightly truncate the original tab title or simply use the site/domain name. roast must be a unique,
+page-specific quote that jokes about why this exact tab is open. Every cardName and roast in the deck
+must be distinct. Keep cardName under 48 characters, abilityName under 40, and roast under 120.
 Return only JSON in this shape:
 {"cards":[{"cardName":"...","type":"GRIND","stats":{"ram":5,"uselessness":5,"shadiness":5,"aura":5},"rarity":"COMMON","abilityId":"OVERCLOCK","abilityName":"...","roast":"..."}]}
 

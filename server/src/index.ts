@@ -86,6 +86,7 @@ if (process.env.NODE_ENV === "production") {
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: clientOrigins } });
 const rooms = new Map<string, GameRoom>();
+const roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function roomCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -156,6 +157,61 @@ function activePlayers(room: GameRoom): Player[] {
   return room.players;
 }
 
+function clearSelectionTimer(room: GameRoom): void {
+  const timer = roomTimers.get(room.code);
+  if (timer) clearTimeout(timer);
+  roomTimers.delete(room.code);
+  room.selectionDeadline = undefined;
+}
+
+function resolveLockedRoom(room: GameRoom): void {
+  const participants = activePlayers(room);
+  if (!participants.every((player) => player.locked && player.selectedCardId)) return;
+  clearSelectionTimer(room);
+  const isSuddenDeath = room.phase === "SUDDEN_DEATH_SELECTING";
+  const crisis = isSuddenDeath
+    ? shuffle(room.suddenDeathOptions ?? [])[0]
+    : room.currentCrisis;
+  if (!crisis) throw new Error("No crisis is available.");
+  room.currentCrisis = crisis;
+  const result = resolveBattle(room, crisis, participants, isSuddenDeath);
+  room.lastResult = result;
+  if (isSuddenDeath) {
+    room.phase = "SUDDEN_DEATH_RESULT";
+    return;
+  }
+  for (const entry of participants) entry.usedCardIds.push(entry.selectedCardId!);
+  const winner = room.players.find((entry) => entry.id === result.winnerId);
+  if (winner) winner.score += 1;
+  room.phase = "RESULT";
+}
+
+function startSelectionTimer(room: GameRoom): void {
+  clearSelectionTimer(room);
+  const deadline = Date.now() + room.selectionSeconds * 1000;
+  room.selectionDeadline = deadline;
+  roomTimers.set(room.code, setTimeout(() => {
+    const liveRoom = rooms.get(room.code);
+    if (
+      !liveRoom
+      || liveRoom.selectionDeadline !== deadline
+      || !["SELECTING", "SUDDEN_DEATH_SELECTING"].includes(liveRoom.phase)
+    ) return;
+    const standardRound = liveRoom.phase === "SELECTING";
+    for (const player of activePlayers(liveRoom)) {
+      if (!player.selectedCardId) {
+        const available = player.deck.filter((card) =>
+          !standardRound || !player.usedCardIds.includes(card.id),
+        );
+        player.selectedCardId = shuffle(available)[0]?.id;
+      }
+      player.locked = true;
+    }
+    resolveLockedRoom(liveRoom);
+    broadcastRoom(liveRoom);
+  }, room.selectionSeconds * 1000));
+}
+
 function newSuddenDeath(room: GameRoom, tiedIds: string[]): void {
   room.suddenDeathPlayerIds = tiedIds;
   room.suddenDeathOptions = shuffle(CRISES).slice(0, 3);
@@ -163,6 +219,7 @@ function newSuddenDeath(room: GameRoom, tiedIds: string[]): void {
   room.lastResult = undefined;
   resetChoices(room.players);
   room.phase = "SUDDEN_DEATH_SELECTING";
+  startSelectionTimer(room);
 }
 
 function advanceRoom(room: GameRoom): void {
@@ -173,6 +230,7 @@ function advanceRoom(room: GameRoom): void {
       room.lastResult = undefined;
       resetChoices(room.players);
       room.phase = "SELECTING";
+      startSelectionTimer(room);
       return;
     }
     const highScore = Math.max(...room.players.map((player) => player.score));
@@ -180,6 +238,7 @@ function advanceRoom(room: GameRoom): void {
     if (leaders.length === 1) {
       room.winnerId = leaders[0]!.id;
       room.phase = "GAME_OVER";
+      clearSelectionTimer(room);
     } else {
       newSuddenDeath(room, leaders.map((player) => player.id));
     }
@@ -190,6 +249,7 @@ function advanceRoom(room: GameRoom): void {
     if (room.lastResult?.winnerId) {
       room.winnerId = room.lastResult.winnerId;
       room.phase = "GAME_OVER";
+      clearSelectionTimer(room);
     } else {
       newSuddenDeath(room, room.lastResult?.tiedPlayerIds ?? room.suddenDeathPlayerIds ?? []);
     }
@@ -234,6 +294,7 @@ io.on("connection", (socket) => {
         code: roomCode(),
         hostId: player.id,
         roundCount,
+        selectionSeconds: 30,
         currentRound: 0,
         phase: "LOBBY",
         players: [player],
@@ -289,6 +350,24 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("SET_SELECTION_TIME", (seconds: unknown) => {
+    try {
+      const room = roomForSocket(socket);
+      if (!room) throw new Error("Room not found.");
+      const player = playerForSocket(room, socket);
+      if (player.id !== room.hostId || room.phase !== "LOBBY") {
+        throw new Error("Only the host can change selection time.");
+      }
+      if (![15, 30, 45, 60].includes(Number(seconds))) {
+        throw new Error("Selection time must be 15, 30, 45, or 60 seconds.");
+      }
+      room.selectionSeconds = Number(seconds) as 15 | 30 | 45 | 60;
+      broadcastRoom(room);
+    } catch (error) {
+      emitError(socket, error);
+    }
+  });
+
   socket.on("SUBMIT_DECK", (cards: unknown) => {
     try {
       const room = roomForSocket(socket);
@@ -330,6 +409,7 @@ io.on("connection", (socket) => {
       room.currentRound = 1;
       room.currentCrisis = room.remainingCrises.shift();
       room.phase = "SELECTING";
+      startSelectionTimer(room);
       broadcastRoom(room);
     } catch (error) {
       emitError(socket, error);
@@ -361,24 +441,7 @@ io.on("connection", (socket) => {
       if (!participants.some((entry) => entry.id === player.id)) throw new Error("You are not in this battle.");
       if (!player.selectedCardId) throw new Error("Choose a card first.");
       player.locked = true;
-      if (participants.every((entry) => entry.locked)) {
-        const isSuddenDeath = room.phase === "SUDDEN_DEATH_SELECTING";
-        const crisis = isSuddenDeath
-          ? shuffle(room.suddenDeathOptions ?? [])[0]
-          : room.currentCrisis;
-        if (!crisis) throw new Error("No crisis is available.");
-        room.currentCrisis = crisis;
-        const result = resolveBattle(room, crisis, participants, isSuddenDeath);
-        room.lastResult = result;
-        if (isSuddenDeath) {
-          room.phase = "SUDDEN_DEATH_RESULT";
-        } else {
-          for (const entry of participants) entry.usedCardIds.push(entry.selectedCardId!);
-          const winner = room.players.find((entry) => entry.id === result.winnerId);
-          if (winner) winner.score += 1;
-          room.phase = "RESULT";
-        }
-      }
+      resolveLockedRoom(room);
       broadcastRoom(room);
     } catch (error) {
       emitError(socket, error);

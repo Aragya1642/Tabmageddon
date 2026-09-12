@@ -15,6 +15,7 @@ export type CardType = (typeof CARD_TYPES)[number];
 export type Rarity = (typeof RARITIES)[number];
 export type AbilityId = (typeof ABILITY_IDS)[number];
 export type StatName = "ram" | "uselessness" | "shadiness" | "aura";
+export type SelectionSeconds = 15 | 30 | 45 | 60;
 export type GamePhase =
   | "LOBBY"
   | "CRISIS_PREVIEW"
@@ -103,6 +104,8 @@ export interface GameRoom {
   code: string;
   hostId: string;
   roundCount: 3 | 5 | 7;
+  selectionSeconds: SelectionSeconds;
+  selectionDeadline?: number;
   currentRound: number;
   phase: GamePhase;
   players: Player[];

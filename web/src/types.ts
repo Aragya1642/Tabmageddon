@@ -84,6 +84,8 @@ export interface Room {
   code: string;
   hostId: string;
   roundCount: 3 | 5 | 7;
+  selectionSeconds: 15 | 30 | 45 | 60;
+  selectionDeadline?: number;
   currentRound: number;
   phase:
     | "LOBBY"

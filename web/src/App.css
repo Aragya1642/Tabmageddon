@@ -260,7 +260,7 @@ button.danger { background: var(--red); border-color: var(--red); color: #FFF8EA
 @keyframes unfold { from { opacity: 0; transform: translateY(-10px) scaleY(.94); } }
 .rulebook { min-height: 650px; background: linear-gradient(150deg,#FFFFFF,#FFFDF8); }.rulebook h1 { color: var(--red); font-size: clamp(14px,3vw,22px); }
 .back-button { margin-bottom: 28px; }.rules-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
-.rules-grid article { min-height: 170px; padding: 20px; border: 1px solid var(--line); background: #FFFFFF; }.rules-grid article > b { color: var(--red); font-size: 18px; }.rules-grid p { color: var(--brown); font-size: 12px; line-height: 1.7; }
+.rules-grid article { min-height: 170px; padding: 20px; border: 1px solid var(--line); background: #FFFFFF; }.rules-grid article > b { color: var(--red); font-size: 18px; }.rules-grid p { color: var(--brown); font-size: 12px; line-height: 1.7; }.rules-grid a { color: var(--red); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 
 .lobby-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }.lobby-top h2 { font-size: clamp(16px,2.4vw,24px); margin: 4px 0; }
 .player-count { color: var(--yellow); font-weight: 900; letter-spacing: 1px; }.lobby-layout { display: grid; grid-template-columns: .7fr 1.8fr; gap: 14px; align-items: start; }

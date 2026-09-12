@@ -261,7 +261,7 @@ function Landing({ onCreate, onJoin }: { onCreate: (reply: RoomReply) => void; o
         <p className="eyebrow">CORRUPTED BROWSER MANUAL</p>
         <h1>HOW TO SURVIVE</h1>
         <div className="rules-grid">
-          <article><b>01</b><h3>ENTER THE LOBBY</h3><p>Create a room, invite up to five victims, and claim a unique fighter.</p></article>
+          <article><b>01</b><h3>ENTER THE LOBBY</h3><p>Install the <a href="https://github.com/Aragya1642/Tabmageddon/tree/master/extension" target="_blank" rel="noreferrer">browser extension</a> from the repo, create a room, invite up to five victims, and claim a unique fighter.</p></article>
           <article><b>02</b><h3>BUILD FOR THE POOL</h3><p>Study every possible crisis, import real tabs, then forge one card per round.</p></article>
           <article><b>03</b><h3>LOCK YOUR FATE</h3><p>Choose one unused card. You can change it until you lock—then there are no takebacks.</p></article>
           <article><b>04</b><h3>SURVIVE THE SCORE</h3><p>Stats, category counters, abilities, and bounded server luck decide each battle.</p></article>

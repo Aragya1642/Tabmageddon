@@ -2,6 +2,10 @@
   "name": "tabmaggedon",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22 <25",
+    "npm": ">=10"
+  },
   "workspaces": [
     "web",
     "server"

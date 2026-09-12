@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { createServer } from "node:http";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import express from "express";
 import { Server, type Socket } from "socket.io";
@@ -18,7 +20,14 @@ import {
 } from "./types.js";
 
 const port = Number(process.env.PORT || 3001);
-const clientOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173").split(",").map((value) => value.trim());
+const configuredOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const renderOrigin = process.env.RENDER_EXTERNAL_HOSTNAME
+  ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`
+  : undefined;
+const clientOrigins = [...new Set([...configuredOrigins, ...(renderOrigin ? [renderOrigin] : [])])];
 const app = express();
 app.use(cors({ origin: clientOrigins }));
 app.use(express.json({ limit: "100kb" }));
@@ -61,6 +70,18 @@ app.post("/api/compile", async (request, response) => {
   });
   response.json(await compileCards(tabs));
 });
+
+if (process.env.NODE_ENV === "production") {
+  const webDist = resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
+  app.use(express.static(webDist));
+  app.use((request, response, next) => {
+    if (request.method === "GET" && request.accepts("html")) {
+      response.sendFile(resolve(webDist, "index.html"));
+      return;
+    }
+    next();
+  });
+}
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: clientOrigins } });

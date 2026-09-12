@@ -74,3 +74,23 @@ Server variables are documented in `server/.env.example`:
 - `GEMINI_MODEL` — defaults to `gemini-2.5-flash`
 
 The web client optionally accepts `VITE_SERVER_URL`; see `web/.env.example`.
+
+## Deploy to Render
+
+The included `render.yaml` deploys the client, server, and Socket.IO endpoint as
+one Render web service. In Render, create a **Blueprint** from this repository:
+
+<https://dashboard.render.com/blueprints>
+
+Choose `Aragya1642/Tabmageddon`, review the `tabmageddon-hackcmu` service, add
+`GEMINI_API_KEY` when prompted, and apply the Blueprint. Gemini is optional; an
+empty key still produces a working deployment through the fallback compiler.
+
+The default deployment URL is:
+
+<https://tabmageddon-hackcmu.onrender.com>
+
+If you change the Render service name, update `CLIENT_ORIGIN` in Render and the
+production URL match in `extension/manifest.json`, then reload the unpacked
+extension. Free Render services sleep when idle, so the first request after a
+quiet period can take roughly a minute.

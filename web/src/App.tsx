@@ -153,7 +153,7 @@ function DeckOverlay({ player, onClose }: { player: Player; onClose: () => void 
         <div className="section-heading"><div><p className="eyebrow">AVAILABLE ANYTIME</p><h2>Your deck</h2></div><button onClick={onClose}>CLOSE ×</button></div>
         <p className="type-loop">🎓 ACADEMIC → 🎮 ENTERTAINMENT → 🛒 SHOPPING → 🧰 UTILITY → 🎓 ACADEMIC</p>
         <div className="card-grid">
-          {player.deck.map((card) => <CardView key={card.id} card={card} used={player.usedCardIds.includes(card.id)} disabled />)}
+          {player.deck.map((card) => <CardView key={card.id} card={card} used={player.usedCardIds.includes(card.id)} preview />)}
         </div>
       </section>
     </div>
@@ -285,7 +285,15 @@ function Lobby({ room, me }: { room: Room; me: Player }) {
             })}
           </div>
         </div>
-        <CrisisPool crises={room.crisisPool} compact />
+        {canStart ? (
+          <CrisisPool crises={room.crisisPool} compact />
+        ) : (
+          <aside className="crisis-pool sealed-pool">
+            <p className="eyebrow">CRISIS VAULT</p>
+            <h3>Sealed until the party is assembled.</h3>
+            <p>Possible crises unlock after every survivor joins and claims a fighter.</p>
+          </aside>
+        )}
       </div>
       {isHost ? (
         <div className="host-actions">
@@ -324,38 +332,40 @@ function DeckBuilder({ room, me }: { room: Room; me: Player }) {
   const [poolOpen, setPoolOpen] = useState(false);
   const liveCount = tabs.filter((tab) => tab.tabId >= 0).length;
 
+  function extraForgeTabs(existing: BrowserTab[], count: number) {
+    const taken = new Set(existing.map((tab) => `${tab.tabId}|${tab.domain}`));
+    return shuffled(DEMO_TABS).filter((tab) => !taken.has(`${tab.tabId}|${tab.domain}`)).slice(0, count);
+  }
+
   async function loadLive(fillShortage = false) {
     setStatus("Asking the extension for your tabs…");
     try {
       const liveTabs = await importLiveTabs();
-      const liveDomains = new Set(liveTabs.map((tab) => tab.domain));
       const shortage = Math.max(0, required - liveTabs.length);
-      const presets = fillShortage
-        ? shuffled(DEMO_TABS.filter((tab) => !liveDomains.has(tab.domain))).slice(0, shortage)
-        : [];
-      const nextTabs = [...liveTabs, ...presets];
+      const extras = extraForgeTabs(liveTabs, (fillShortage ? shortage : 0) + 3);
+      const nextTabs = [...liveTabs, ...extras];
       setTabs(nextTabs);
       setSelected((current) => {
         const kept = current.filter((id) => nextTabs.some((tab) => tab.tabId === id));
         if (!fillShortage) return kept.slice(0, required);
-        const extras = nextTabs.map((tab) => tab.tabId).filter((id) => !kept.includes(id));
-        return [...kept, ...extras].slice(0, required);
+        const fillers = nextTabs.map((tab) => tab.tabId).filter((id) => !kept.includes(id));
+        return [...kept, ...fillers].slice(0, required);
       });
       setStatus(shortage > 0
         ? fillShortage
-          ? `${liveTabs.length} live tabs found. Forged ${presets.length} placeholder${presets.length === 1 ? "" : "s"} so you can play.`
+          ? `${liveTabs.length} live tabs found. Added forged options so you can fill the deck.`
           : `${liveTabs.length} live tabs found. Need ${shortage} more, or forge the rest.`
-        : `${liveTabs.length} live tabs found. List refreshed.`);
+        : `${liveTabs.length} live tabs found. 3 extra forge options added.`);
     } catch (loadError) {
       setStatus(loadError instanceof Error ? loadError.message : "Could not import tabs.");
     }
   }
 
   function loadDemo() {
-    const presets = shuffled(DEMO_TABS);
+    const presets = shuffled(DEMO_TABS).slice(0, required + 2);
     setTabs(presets);
     setSelected(presets.slice(0, required).map((tab) => tab.tabId));
-    setStatus("20 preset tabs shuffled. A random starting deck is selected.");
+    setStatus(`Shuffled a ${presets.length}-tab demo hand. Pick ${required}.`);
   }
 
   function toggle(tabId: number) {

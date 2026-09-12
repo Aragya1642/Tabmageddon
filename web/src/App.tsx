@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
 import { io } from "socket.io-client";
 import { AvatarSprite, type AvatarPose } from "./AvatarSprite";
 import { AVATARS } from "./avatars";
@@ -28,6 +28,29 @@ function crisisRule(crisis: Crisis): string {
 
 function isRealCard(card: TabCard): boolean {
   return card.sourceType !== "synthetic" && card.tabId >= 0;
+}
+
+function rowPattern(total: number): number[] {
+  if (total <= 3) return [total];
+  if (total === 4) return [2, 2];
+  if (total === 5) return [3, 2];
+  if (total === 6) return [3, 3];
+  if (total === 7) return [3, 2, 2];
+  return [3, 2, total - 5];
+}
+
+function CardRows({ children, className = "" }: { children: ReactNode; className?: string }) {
+  const items = Children.toArray(children);
+  let cursor = 0;
+  return (
+    <div className={`card-grid stacked-rows ${className}`}>
+      {rowPattern(items.length).map((size, index) => {
+        const row = items.slice(cursor, cursor + size);
+        cursor += size;
+        return <div className="card-row" key={index}>{row}</div>;
+      })}
+    </div>
+  );
 }
 
 function playerName(room: Room, id?: string): string {
@@ -152,9 +175,9 @@ function DeckOverlay({ player, onClose }: { player: Player; onClose: () => void 
       <section className="deck-modal" role="dialog" aria-modal="true" aria-label="Your deck" onClick={(event) => event.stopPropagation()}>
         <div className="section-heading"><div><p className="eyebrow">AVAILABLE ANYTIME</p><h2>Your deck</h2></div><button onClick={onClose}>CLOSE ×</button></div>
         <p className="type-loop">🎓 ACADEMIC → 🎮 ENTERTAINMENT → 🛒 SHOPPING → 🧰 UTILITY → 🎓 ACADEMIC</p>
-        <div className="card-grid">
+        <CardRows>
           {player.deck.map((card) => <CardView key={card.id} card={card} used={player.usedCardIds.includes(card.id)} preview />)}
-        </div>
+        </CardRows>
       </section>
     </div>
   );
@@ -164,7 +187,7 @@ function Landing({ onCreate, onJoin }: { onCreate: (reply: RoomReply) => void; o
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [roundCount, setRoundCount] = useState<3 | 5 | 7>(5);
-  const [selectionSeconds, setSelectionSeconds] = useState<30 | 45 | 60>(45);
+  const [selectionSeconds, setSelectionSeconds] = useState<30 | 45 | 60>(30);
   const [panel, setPanel] = useState<"create" | "join">();
   const [rulebook, setRulebook] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -315,7 +338,6 @@ function CrisisPool({ crises, compact = false }: { crises: Room["crisisPool"]; c
           <span>⚠</span>
           <strong>{crisis.name}</strong>
           <em>{crisis.description}</em>
-          <small>{crisis.stat.toUpperCase()} · {crisis.direction}</small>
         </article>
       ))}</div>
     </aside>
@@ -401,9 +423,11 @@ function DeckBuilder({ room, me }: { room: Room; me: Player }) {
       <section className="panel deck-waiting">
         <p className="eyebrow">DECK LOCKED</p>
         <h1>NO TAKEBACKS.</h1>
-        <div className="card-grid">{me.deck.map((card) => <CardView key={card.id} card={card} compact />)}</div>
-        <h3>WAITING FOR THE REST OF THE LOBBY</h3>
-        <div className="ready-roster">{room.players.map((player) => <span key={player.id} className={player.deckFinalized ? "ready" : ""}>{player.deckFinalized ? "✓" : "…"} {player.name}</span>)}</div>
+        <div className="wait-banner">
+          <h3>WAITING FOR THE REST OF THE LOBBY</h3>
+          <div className="ready-roster">{room.players.map((player) => <span key={player.id} className={player.deckFinalized ? "ready" : ""}>{player.deckFinalized ? "✓" : "…"} {player.name}</span>)}</div>
+        </div>
+        <CardRows>{me.deck.map((card) => <CardView key={card.id} card={card} compact />)}</CardRows>
       </section>
     );
   }
@@ -413,7 +437,7 @@ function DeckBuilder({ room, me }: { room: Room; me: Player }) {
       <section className="panel deck-review">
         <div className="section-heading"><div><p className="eyebrow">FORGE COMPLETE</p><h2>REVIEW YOUR DECK</h2></div><b>{forgedCards.length} CARDS / {required} ROUNDS</b></div>
         <button onClick={() => setPoolOpen(true)}>VIEW CRISIS POOL</button>
-        <div className="card-grid">{forgedCards.map((card) => <CardView key={card.id} card={card} />)}</div>
+        <CardRows>{forgedCards.map((card) => <CardView key={card.id} card={card} />)}</CardRows>
         <div className="review-actions"><button onClick={() => setForgedCards(undefined)}>BACK TO TABS</button><button className="primary big-action" onClick={() => socket.emit("SUBMIT_DECK", forgedCards)}>FINALIZE MY CARDS</button></div>
         {poolOpen && <PoolModal room={room} onClose={() => setPoolOpen(false)} />}
       </section>
@@ -495,14 +519,13 @@ function Battle({ room, me }: { room: Room; me: Player }) {
             <div className="sudden-banner">
               <p className="eyebrow">☠ SUDDEN DEATH ☠</p>
               <h2>THREE CRISES. ONE WILL FIRE.</h2>
-              <div className="crisis-options">{room.suddenDeathOptions?.map((crisis) => <span key={crisis.id}>{crisis.name}<small>{crisis.description}</small><em>{crisis.stat.toUpperCase()} · {crisis.direction}</em></span>)}</div>
+              <div className="crisis-options">{room.suddenDeathOptions?.map((crisis) => <span key={crisis.id}>{crisis.name}<small>{crisis.description}</small></span>)}</div>
             </div>
           ) : room.currentCrisis && (
             <div className="current-crisis" key={`${room.currentRound}-${room.currentCrisis.id}`}>
               <p className="eyebrow">🚨 ROUND {room.currentRound} / {room.roundCount}</p>
               <h2>{room.currentCrisis.name}</h2>
               <p>{room.currentCrisis.description}</p>
-              <small>{room.currentCrisis.stat.toUpperCase()} · {room.currentCrisis.direction}</small>
             </div>
           )}
           <SelectionTimer deadline={room.selectionDeadline} />
@@ -517,13 +540,13 @@ function Battle({ room, me }: { room: Room; me: Player }) {
       {me.autoLocked && <p className="center-note">The arena chose for you.</p>}
       {!participating ? <p className="center-note">The tied leaders are fighting. Enjoy the wreckage.</p> : (
         <>
-          <div className="hand-heading"><div><h3>YOUR HAND</h3><p>Your choice stays hidden until everyone locks.</p></div><b>{me.locked ? "LOCKED. NO TAKEBACKS." : "SELECT ONE UNUSED CARD"}</b></div>
-          <div className="card-grid battle-hand">
+          <div className="hand-heading"><h3>YOUR HAND</h3><b>{me.locked ? "LOCKED. NO TAKEBACKS." : "SELECT ONE UNUSED CARD"}</b></div>
+          <CardRows className="battle-hand">
             {availableCards.map((card) => {
               const used = !sudden && me.usedCardIds.includes(card.id);
               return <CardView key={card.id} card={card} selected={me.selectedCardId === card.id} used={used} disabled={used || me.locked} onClick={() => socket.emit("SELECT_CARD", card.id)} />;
             })}
-          </div>
+          </CardRows>
           <button className="primary big-action" disabled={!me.selectedCardId || me.locked} onClick={() => socket.emit("LOCK_IN")}>{me.locked ? "LOCKED IN 🔒" : me.selectedCardId ? "LOCK IN" : "SELECT A CARD"}</button>
         </>
       )}
@@ -556,20 +579,25 @@ function Result({ room }: { room: Room }) {
     ? result.isSuddenDeath ? "SUDDEN DEATH TIE — AGAIN." : `${playerName(room, result.tabClashWinnerId)} WINS TAB CLASH`
     : `${playerName(room, result.winnerId)} WINS`;
   return (
-    <section className="panel result-screen">
+    <section className="panel result-screen fight-result">
       <Scoreboard room={room} />
       <p className="eyebrow">{result.isSuddenDeath ? "☠ SUDDEN DEATH RESULT" : `ROUND ${room.currentRound} RESULT`}</p>
       <h2>{result.crisis.name}</h2>
       <p className="crisis-rule">{crisisRule(result.crisis)}</p>
       <h1>{title}</h1>
+      <div className="pixel-fall" aria-hidden>{Array.from({ length: 16 }, (_, index) => <i key={index} style={{ left: `${6 + index * 6}%`, animationDelay: `${index * 40}ms` }} />)}</div>
       <div className="result-grid">
         {result.scores.map((score) => {
           const tied = isTie && result.tiedPlayerIds.includes(score.playerId);
           const won = score.playerId === result.winnerId;
+          const sabotaged = /sabotag/i.test(score.abilityNote);
+          const popup = score.abilityModifier !== 0
+            ? `${score.abilityModifier > 0 ? "+" : ""}${score.abilityModifier}`
+            : undefined;
           return (
           <div className={`result-column ${won ? "winner-column" : ""} ${tied ? "tie-column" : ""}`} key={score.playerId}>
             <h3>{playerName(room, score.playerId)}{tied && <span className="tie-badge">{result.isSuddenDeath ? "TIED" : score.playerId === result.tabClashWinnerId ? "TAB CLASH +1" : "TAB CLASH"}</span>}</h3>
-            <CardView card={score.card} compact />
+            <CardView card={score.card} compact preview flyIn hit={sabotaged} popup={popup || (score.luck !== 0 ? `${score.luck > 0 ? "+" : ""}${score.luck}` : undefined)} />
             <div className="math-row"><span>Crisis score</span><b>{score.crisisScore}</b></div>
             <div className="math-row"><span>Category matchup</span><b>{score.typeModifier >= 0 ? "+" : ""}{score.typeModifier}</b></div>
             <div className="math-row"><span>{score.abilityNote}</span><b>{score.abilityModifier >= 0 ? "+" : ""}{score.abilityModifier}</b></div>

@@ -403,7 +403,7 @@ io.on("connection", (socket) => {
       const roundCount = [3, 5, 7].includes(Number(payload?.roundCount)) ? (Number(payload.roundCount) as 3 | 5 | 7) : 5;
       const selectionSeconds = [30, 45, 60].includes(Number(payload?.selectionSeconds))
         ? (Number(payload.selectionSeconds) as 30 | 45 | 60)
-        : 45;
+        : 30;
       const player = createPlayer(socket, payload?.name);
       const crisisPool = shuffle(CRISES).slice(0, roundCount);
       const room: GameRoom = {

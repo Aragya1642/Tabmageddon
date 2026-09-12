@@ -8,18 +8,26 @@ interface Props {
   disabled?: boolean;
   compact?: boolean;
   preview?: boolean;
+  popup?: string;
+  hit?: boolean;
+  flyIn?: boolean;
   onClick?: () => void;
 }
 
 const TYPE_ICONS = { ENTERTAINMENT: "🎮", UTILITY: "🧰", ACADEMIC: "🎓", SHOPPING: "🛒" };
+const TYPE_CARVINGS = { ENTERTAINMENT: "🎬", UTILITY: "⚙️", ACADEMIC: "📜", SHOPPING: "🏷️" };
 
-export function CardView({ card, selected, used, disabled, compact, preview, onClick }: Props) {
+function shorten(value: string, max = 22): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+export function CardView({ card, selected, used, disabled, compact, preview, popup, hit, flyIn, onClick }: Props) {
   const [expanded, setExpanded] = useState(false);
   return (
     <>
       <button
         type="button"
-        className={`game-card type-${card.type.toLowerCase()} ${selected ? "selected" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""} ${preview ? "preview" : ""}`}
+        className={`game-card type-${card.type.toLowerCase()} ${selected ? "selected" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""} ${preview ? "preview" : ""} ${hit ? "card-hit" : ""} ${flyIn ? "card-fly" : ""}`}
         disabled={disabled && !preview}
         onClick={onClick ?? (compact || preview ? () => setExpanded(true) : undefined)}
       >
@@ -32,8 +40,8 @@ export function CardView({ card, selected, used, disabled, compact, preview, onC
             {card.faviconUrl ? <img src={card.faviconUrl} alt="" /> : <span className="favicon-fallback">◈</span>}
           </div>
           <div className="card-title-row">
-            <strong>{card.cardName}</strong>
-            <small>{card.domain}</small>
+            <strong title={card.cardName}>{shorten(card.cardName, compact ? 18 : 26)}</strong>
+            <small title={card.domain}>{shorten(card.domain, 20)}</small>
           </div>
           {!compact && (
             <>
@@ -51,7 +59,10 @@ export function CardView({ card, selected, used, disabled, compact, preview, onC
               <small className="single-use">SINGLE USE{card.sourceType === "synthetic" ? " · FORGED" : ""}</small>
             </>
           )}
+          <div className="card-carving" aria-hidden>{TYPE_CARVINGS[card.type]}</div>
         </div>
+        {popup && <span className={`score-popup ${popup.startsWith("-") ? "bad" : "good"}`}>{popup}</span>}
+        {hit && <span className="sabotage-arrow" aria-hidden>➤</span>}
         {used && <span className="used-stamp">USED</span>}
         {compact && !onClick && <span className="inspect-hint">VIEW STATS</span>}
       </button>

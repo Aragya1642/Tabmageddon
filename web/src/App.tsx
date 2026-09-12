@@ -618,17 +618,23 @@ function Result({ room, me }: { room: Room; me: Player }) {
         {result.scores.map((score, index) => {
           const player = room.players.find((entry) => entry.id === score.playerId);
           const won = score.playerId === result.winnerId;
+          const special = /sabotag|chaos|pop-up/i.test(score.abilityNote);
           const pops = [
-            score.abilityModifier !== 0 ? `${score.abilityModifier > 0 ? "+" : ""}${score.abilityModifier}` : "",
-            score.luck !== 0 ? `${score.luck > 0 ? "+" : ""}${score.luck} LUCK` : "",
-            /sabotag/i.test(score.abilityNote) ? "HIT" : "",
-          ].filter(Boolean);
+            score.abilityModifier !== 0 ? {
+              text: `${score.abilityModifier > 0 ? "+" : ""}${score.abilityModifier}`,
+              kind: special ? "special" : score.abilityModifier > 0 ? "good" : "bad",
+            } : undefined,
+            score.luck !== 0 ? {
+              text: `${score.luck > 0 ? "+" : ""}${score.luck} LUCK`,
+              kind: score.luck > 0 ? "good" : "bad",
+            } : undefined,
+          ].filter((pop): pop is { text: string; kind: string } => Boolean(pop));
           return (
             <div className={`clash-fighter ${won ? "winner" : "loser"} side-${index % 2 === 0 ? "left" : "right"}`} key={score.playerId}>
               <AvatarSprite avatarId={player?.avatarId} size={156} pose={won ? "attack" : /sabotag/i.test(score.abilityNote) ? "hit" : "lose"} />
               <strong>{playerName(room, score.playerId)}</strong>
               <div className="clash-pops">
-                {pops.map((pop) => <span key={pop} className={pop.startsWith("-") || pop === "HIT" ? "bad" : "good"}>{pop}</span>)}
+                {pops.map((pop) => <span key={pop.text} className={pop.kind}>{pop.text}</span>)}
               </div>
             </div>
           );
@@ -843,7 +849,7 @@ function RehabRow({
 }) {
   return (
     <div className={`rehab-row ${decision ?? ""}`}>
-      {card.faviconUrl ? <img src={card.faviconUrl} alt="" /> : <span className="favicon-fallback">◈</span>}
+      {card.sourceType === "synthetic" || !card.faviconUrl ? <span className="favicon-fallback tm-mark">TM</span> : <img src={card.faviconUrl} alt="" />}
       <div className="rehab-copy">
         <strong>{card.originalTitle || card.cardName}</strong>
         <small>{card.domain}{card.sourceType === "synthetic" ? " · FORGED" : ""}{note ? ` · ${note}` : ""}</small>

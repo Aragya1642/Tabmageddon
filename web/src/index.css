@@ -1,8 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&display=swap");
 
 :root {
-  font-family: "Pixelify Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: Oswald, ui-sans-serif, system-ui, sans-serif;
   font-size: 18px;
+  font-weight: 500;
   color: var(--text-primary);
   background: var(--bg-void);
   font-synthesis: none;
@@ -37,11 +38,15 @@
   --line: var(--border-subtle);
 }
 
-h1, h2, h3, .brand, .room-code, .eyebrow, .current-crisis h2, .sudden-banner h2, .winner-screen h1, .rehab h1, .card-type-label, .used-stamp {
-  font-family: "Press Start 2P", "Pixelify Sans", monospace;
+.brand, .landing > h1, .winner-screen h1, .rehab h1, .match-intro h1, .deck-waiting h1 {
+  font-family: "Press Start 2P", Oswald, sans-serif;
   image-rendering: pixelated;
   letter-spacing: 0;
   line-height: 1.35;
+}
+
+h2, h3, .eyebrow, .room-code, .card-type-label, .used-stamp, .lede, p, label, small, .ability, .roast, .math-row, .center-note, .crisis-rule {
+  font-family: Oswald, ui-sans-serif, sans-serif;
 }
 
 .num, .stats b, .scoreboard b, .selection-timer b, .math-row b, .podium-slot > b, .picker-heading > b,

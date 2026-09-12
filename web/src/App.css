@@ -87,7 +87,7 @@ button.primary { color: #FFFFFF; border: 1px solid var(--red); background: var(-
 .game-card.type-entertainment.selected { box-shadow: 0 0 22px var(--glow-green); }
 .game-card.type-shopping.selected { box-shadow: 0 0 22px var(--glow-gold); }
 .game-card.type-utility.selected { box-shadow: 0 0 22px var(--glow-blue); }
-.game-card.selected {
+.game-card.selected-shake {
   animation: selected-card-vibrate .72s steps(2, end) infinite;
 }
 .game-card.selected::before {
@@ -161,8 +161,9 @@ button.primary { color: #FFFFFF; border: 1px solid var(--red); background: var(-
 .pixel-fall i { position: absolute; top: -8px; width: 8px; height: 8px; background: var(--moss); box-shadow: 10px 6px 0 #FFFFFF, -8px 14px 0 var(--red); animation: pixel-drop 1.1s linear both; }
 @keyframes pixel-drop { to { transform: translateY(110%); opacity: 0; } }
 .modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgba(58,34,24,.45); backdrop-filter: blur(8px); }
-.card-modal { position: relative; width: min(336px, calc(100% - 16px)); }
-.card-modal .game-card { width: 100%; min-height: 390px; filter: none; opacity: 1; }
+.card-modal { position: relative; width: min(430px, calc(100% - 16px)); }
+.card-modal .game-card { width: 100%; min-height: 610px; filter: none; opacity: 1; }
+.card-modal .game-card .card-inner { min-height: 590px; }
 .modal-close { position: absolute; z-index: 2; top: -14px; right: -14px; width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--moss); color: #FFF8EA; }
 .deck-backdrop { overflow-y: auto; place-items: start center; }
 .deck-modal { width: min(1180px, 100%); margin: 30px auto; padding: 30px; border: 1px solid var(--line); border-radius: 18px; background: #FFFFFF; }

@@ -63,7 +63,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background:
-  linear-gradient(rgba(255, 253, 248, .62), rgba(246, 241, 232, .78)),
+  linear-gradient(rgba(255, 253, 248, .37), rgba(246, 241, 232, .47)),
   url("/all-bg.png") center / cover no-repeat fixed,
   #FFFDF8; }
 button, input, select { font: inherit; }

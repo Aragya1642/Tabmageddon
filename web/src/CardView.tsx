@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CardType, TabCard } from "./types";
 
 interface Props {
@@ -46,12 +46,24 @@ function TypeWatermark({ type }: { type: CardType }) {
 
 export function CardView({ card, selected, used, disabled, compact, preview, popup, hit, flyIn, onClick }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [shakeSelected, setShakeSelected] = useState(false);
   const forgedLogo = card.sourceType === "synthetic" || !card.faviconUrl;
+
+  useEffect(() => {
+    if (!selected) {
+      setShakeSelected(false);
+      return;
+    }
+    setShakeSelected(true);
+    const timer = window.setTimeout(() => setShakeSelected(false), 2600);
+    return () => window.clearTimeout(timer);
+  }, [selected]);
+
   return (
     <>
       <button
         type="button"
-        className={`game-card type-${card.type.toLowerCase()} ${selected ? "selected" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""} ${preview ? "preview" : ""} ${hit ? "card-hit" : ""} ${flyIn ? "card-fly" : ""}`}
+        className={`game-card type-${card.type.toLowerCase()} ${selected ? "selected" : ""} ${shakeSelected ? "selected-shake" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""} ${preview ? "preview" : ""} ${hit ? "card-hit" : ""} ${flyIn ? "card-fly" : ""}`}
         disabled={disabled && !preview}
         onClick={onClick ?? (compact ? () => setExpanded(true) : undefined)}
       >

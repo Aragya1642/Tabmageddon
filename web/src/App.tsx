@@ -356,7 +356,7 @@ function Lobby({ room, me }: { room: Room; me: Player }) {
               return (
                 <button key={avatar.id} disabled={Boolean(owner && !mine)} className={`avatar-card ${owner ? "taken" : ""} ${mine ? "mine" : ""}`} onClick={() => socket.emit("CLAIM_AVATAR", avatar.id)}>
                   <span className="avatar-portrait"><AvatarSprite avatarId={avatar.id} size={96} pose={mine ? "ready" : "idle"} /></span>
-                  <strong>{avatar.name}</strong><small>{avatar.role}</small>
+                  <strong>{avatar.name}</strong>
                   {mine && <em>YOU</em>}
                   {owner && !mine && <em>TAKEN BY {owner.name}</em>}
                 </button>

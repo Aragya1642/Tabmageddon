@@ -1,49 +1,60 @@
 @import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
 
+/* Orange Kid is CC0/public domain by Typodermic Fonts. */
+@font-face {
+  font-family: "Orange Kid";
+  src: url("/fonts/OrangeKid.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  font-family: "Press Start 2P", monospace;
+  font-family: var(--font-body);
   font-size: 11px;
   font-weight: 400;
-  color: var(--text-primary);
+  color: var(--ink);
   background: var(--bg-void);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  --font-title: "Press Start 2P", monospace;
+  --font-body: "Orange Kid", "Press Start 2P", monospace;
+
+  --mario-red: #931A23;
+  --mario-brown: #755041;
+  --mario-moss: #8C964F;
+  --mario-blue: #4566B0;
+  --mario-gold: #FCCB25;
+  --mario-terracotta: #BF7759;
+
+  --ink: #1C1210;
   --bg-void: #FFFDF8;
   --bg-deep: #F6F1E8;
   --bg-panel: #FFFFFF;
   --bg-panel-raised: #FFFDF8;
-  --green-900: #5C6434;
-  --green-700: #6F7840;
-  --green-500: #8C964F;
-  --green-300: #A8B26A;
-  --moss: #8C964F;
-  --gold-700: #8C964F;
-  --gold-500: #8C964F;
-  --gold-300: #8C964F;
-  --red-800: #6E141C;
-  --red-600: #931A23;
-  --red-400: #B3222D;
-  --blue: #4566BD;
-  --brown: #5A3D32;
-  --terracotta: #BF7759;
-  --ink: #1C1210;
-  --text-primary: #1C1210;
-  --text-muted: #5A3D32;
-  --border-subtle: rgba(90, 61, 50, 0.24);
-  --glow-green: rgba(140, 150, 79, 0.45);
-  --glow-gold: rgba(140, 150, 79, 0.45);
-  --glow-red: rgba(147, 26, 35, 0.4);
-  --purple: var(--green-500);
-  --pink: var(--red-600);
-  --yellow: var(--red-600);
-  --red: var(--red-600);
-  --muted: var(--text-muted);
+
+  --red: var(--mario-red);
+  --brown: var(--mario-brown);
+  --moss: var(--mario-moss);
+  --blue: var(--mario-blue);
+  --yellow: var(--mario-gold);
+  --terracotta: var(--mario-terracotta);
+
+  --pink: var(--mario-red);
+  --purple: var(--mario-moss);
+  --muted: var(--mario-brown);
+  --text-muted: var(--mario-brown);
   --panel: rgba(255, 255, 255, 0.96);
-  --line: var(--border-subtle);
+  --line: rgba(117, 80, 65, 0.28);
+  --glow-gold: rgba(252, 203, 37, 0.55);
+  --glow-green: rgba(140, 150, 79, 0.45);
+  --glow-red: rgba(147, 26, 35, 0.4);
+  --glow-blue: rgba(69, 102, 176, 0.45);
 }
 
 html, body, button, input, select, textarea {
-  font-family: "Press Start 2P", monospace;
+  font-family: var(--font-body);
   image-rendering: pixelated;
 }
 
@@ -63,12 +74,29 @@ p, small, label, dt, .lede, .center-note, .status, .privacy, .roast, .math-row,
 .picker-heading p, .host-actions p, .room-panel p, .room-panel small, .room-panel dt,
 .lock-status span, .scoreboard span, .rehab-copy, .rehab-copy small, .gemini-sort,
 .match-intro h2, .result-screen > h2, .avatar-card small, .tab-option small,
-.entry-panel label small, .crisis-pool h3, .crisis-pool article p, .sealed-pool p {
+.entry-panel label small, .crisis-pool h3, .crisis-pool article p {
   color: var(--brown);
 }
 h1, h2, h3, p { margin-top: 0; }
 h1, h2, h3 { line-height: 1.5; }
 img { max-width: 100%; }
+
+h1, h2, h3,
+.brand,
+.eyebrow,
+.room-code, .room-pill b,
+.scoreboard b,
+.selection-timer b,
+.used-stamp,
+.score-popup,
+.podium-slot > b,
+.crown,
+.gate,
+.avatar-card em,
+.player-count,
+button.primary {
+  font-family: var(--font-title);
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

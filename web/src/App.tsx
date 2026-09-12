@@ -51,7 +51,7 @@ function PixelField() {
     size: 3 + Math.round(Math.random() * 7),
     duration: `${7 + Math.random() * 11}s`,
     delay: `${Math.random() * -10}s`,
-    color: ["#931A23", "#8C964F", "#FFFFFF", "#5A3D32", "#BF7759"][index % 5],
+    color: ["var(--red)", "var(--moss)", "#FFFFFF", "var(--brown)", "var(--terracotta)"][index % 5],
   })), []);
   return (
     <div className="pixel-field" aria-hidden>
@@ -365,15 +365,6 @@ function Lobby({ room, me }: { room: Room; me: Player }) {
           </div>
         </div>
       </div>
-      {canStart ? (
-        <CrisisPool crises={room.crisisPool} />
-      ) : (
-        <aside className="crisis-pool sealed-pool">
-          <p className="eyebrow">CRISIS VAULT</p>
-          <h3>Sealed until the party is assembled.</h3>
-          <p>Possible crises unlock after every survivor joins and claims a fighter.</p>
-        </aside>
-      )}
       {isHost ? (
         <div className="host-actions">
           <button className="primary big-action" disabled={!canStart} onClick={() => socket.emit("START_TAB_SELECTION")}>START TAB PICKING</button>
@@ -394,7 +385,7 @@ function CrisisPool({ crises, hideIntro = false }: { crises: Room["crisisPool"];
         </>
       )}
       <div className="crisis-list">{crises.map((crisis) => (
-        <article key={crisis.id}>
+        <article key={crisis.id} data-stat={crisis.stat.toLowerCase()}>
           <strong>{crisis.name}</strong>
           <p>{crisis.description}</p>
         </article>
@@ -404,6 +395,22 @@ function CrisisPool({ crises, hideIntro = false }: { crises: Room["crisisPool"];
 }
 
 function CrisisVaultPage({ crises, onContinue }: { crises: Room["crisisPool"]; onContinue: () => void }) {
+  const [count, setCount] = useState(3);
+  useEffect(() => {
+    if (count <= 0) return;
+    const timer = window.setTimeout(() => setCount((current) => current - 1), 800);
+    return () => window.clearTimeout(timer);
+  }, [count]);
+
+  if (count > 0) {
+    return (
+      <section className="panel vault-reveal vault-countdown">
+        <p className="eyebrow">THE VAULT IS OPENING</p>
+        <div className="vault-countdown-number" key={count}>{count}</div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel vault-reveal">
       <p className="eyebrow">THE VAULT IS OPEN</p>
@@ -567,6 +574,7 @@ function battlePose(room: Room, player: Player): AvatarPose {
 
 function Battle({ room, me }: { room: Room; me: Player }) {
   const sudden = room.phase === "SUDDEN_DEATH_SELECTING";
+  const arenaIndex = ((room.currentRound - 1) % 4) + 1;
   const participating = !sudden || room.suddenDeathPlayerIds?.includes(me.id);
   const availableCards = me.deck;
   const lockedCount = room.players.filter((player) => player.locked && (!sudden || room.suddenDeathPlayerIds?.includes(player.id))).length;
@@ -574,7 +582,11 @@ function Battle({ room, me }: { room: Room; me: Player }) {
   return (
     <section className={`panel battle arena-shell ${sudden ? "sudden-arena" : ""}`}>
       <Scoreboard room={room} />
-      <div className="battle-arena">
+      <div
+        className="battle-arena"
+        key={arenaIndex}
+        style={{ backgroundImage: `url(/arenas/arena-${arenaIndex}.png)` }}
+      >
         <div className="arena-players">
           {room.players.map((player, index) => (
             <div className={`battle-avatar slot-${index + 1} ${player.locked ? "locked" : ""}`} key={player.id}>
@@ -715,7 +727,18 @@ function GameOver({ room, onRehab }: { room: Room; onRehab: () => void }) {
       <div className="podium">
         {standings.slice(0, 3).map((player, index) => (
           <div className={`podium-slot place-${index + 1}`} key={player.id}>
-            {index === 0 && <span className="crown">1ST</span>}
+            {index === 0 && (
+              <span className="crown" aria-label="1st place">
+                <svg viewBox="0 0 32 20" width="40" height="25" shapeRendering="crispEdges">
+                  <rect x="2" y="10" width="28" height="8" fill="#FCCB25" stroke="#755041" strokeWidth="1" />
+                  <rect x="4" y="14" width="4" height="4" fill="#BF7759" />
+                  <rect x="14" y="14" width="4" height="4" fill="#BF7759" />
+                  <rect x="24" y="14" width="4" height="4" fill="#BF7759" />
+                  <polygon points="2,10 2,2 8,8 16,0 24,8 30,2 30,10" fill="#FCCB25" stroke="#755041" strokeWidth="1" />
+                  <rect x="14" y="4" width="4" height="4" fill="#931A23" />
+                </svg>
+              </span>
+            )}
             <b>{index + 1}</b>
             <span className="podium-avatar"><AvatarSprite avatarId={player.avatarId} size={index === 0 ? 150 : 120} pose={index === 0 ? "winner" : "lose"} /></span>
             <strong>{player.name}</strong>

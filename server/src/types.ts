@@ -9,7 +9,21 @@ export const ABILITY_IDS = [
   "TYPE_GUARD",
   "CHAOS",
 ] as const;
-export const AVATAR_IDS = ["warden", "gremlin", "technomancer", "scholar", "scavenger", "imp"] as const;
+export const AVATAR_IDS = [
+  "warden",
+  "gremlin",
+  "technomancer",
+  "scholar",
+  "scavenger",
+  "imp",
+  "avatar6",
+  "avatar7",
+  "avatar8",
+  "avatar9",
+  "avatar10",
+  "avatar11",
+  "avatar12",
+] as const;
 
 export type CardType = (typeof CARD_TYPES)[number];
 export type AbilityId = (typeof ABILITY_IDS)[number];

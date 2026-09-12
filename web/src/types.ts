@@ -9,7 +9,20 @@ export type AbilityId =
   | "TYPE_GUARD"
   | "CHAOS";
 export type StatName = "ram" | "uselessness" | "shadiness" | "aura";
-export type AvatarId = "warden" | "gremlin" | "technomancer" | "scholar" | "scavenger" | "imp";
+export type AvatarId =
+  | "warden"
+  | "gremlin"
+  | "technomancer"
+  | "scholar"
+  | "scavenger"
+  | "imp"
+  | "avatar6"
+  | "avatar7"
+  | "avatar8"
+  | "avatar9"
+  | "avatar10"
+  | "avatar11"
+  | "avatar12";
 
 export interface BrowserTab {
   tabId: number;

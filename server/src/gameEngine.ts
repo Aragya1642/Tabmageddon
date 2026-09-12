@@ -11,10 +11,10 @@ import type {
 export type RandomSource = () => number;
 
 const BEATS: Record<CardType, CardType> = {
-  GRIND: "SOCIAL",
-  SOCIAL: "BRAINROT",
-  BRAINROT: "UTILITY",
-  UTILITY: "GRIND",
+  ACADEMIC: "ENTERTAINMENT",
+  ENTERTAINMENT: "SHOPPING",
+  SHOPPING: "UTILITY",
+  UTILITY: "ACADEMIC",
 };
 
 export function shuffle<T>(items: readonly T[], random: RandomSource = Math.random): T[] {
@@ -144,14 +144,7 @@ export function resolveBattle(
 
   const bestScore = Math.max(...scores.map((score) => score.finalScore));
   const tiedPlayerIds = scores.filter((score) => score.finalScore === bestScore).map((score) => score.playerId);
-  let winnerId: string | undefined;
-  let tabClash = false;
-  if (tiedPlayerIds.length === 1) {
-    [winnerId] = tiedPlayerIds;
-  } else if (!isSuddenDeath) {
-    winnerId = chooseRandom(tiedPlayerIds, random);
-    tabClash = true;
-  }
+  const winnerId = tiedPlayerIds.length === 1 ? tiedPlayerIds[0] : undefined;
 
-  return { crisis, scores, winnerId, tiedPlayerIds, tabClash, isSuddenDeath };
+  return { crisis, scores, winnerId, tiedPlayerIds, isSuddenDeath };
 }

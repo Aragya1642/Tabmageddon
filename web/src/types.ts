@@ -1,5 +1,4 @@
-export type CardType = "GRIND" | "SOCIAL" | "BRAINROT" | "UTILITY";
-export type Rarity = "COMMON" | "RARE" | "EPIC" | "MYTHIC";
+export type CardType = "ENTERTAINMENT" | "UTILITY" | "ACADEMIC" | "SHOPPING";
 export type AbilityId =
   | "OVERCLOCK"
   | "REROLL"
@@ -34,7 +33,6 @@ export interface TabCard {
   cardName: string;
   type: CardType;
   stats: Record<StatName, number>;
-  rarity: Rarity;
   abilityId: AbilityId;
   abilityName: string;
   abilityDescription: string;
@@ -66,7 +64,6 @@ export interface RoundResult {
   scores: ScoreBreakdown[];
   winnerId?: string;
   tiedPlayerIds: string[];
-  tabClash?: boolean;
   isSuddenDeath: boolean;
 }
 

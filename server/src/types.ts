@@ -1,5 +1,4 @@
-export const CARD_TYPES = ["GRIND", "SOCIAL", "BRAINROT", "UTILITY"] as const;
-export const RARITIES = ["COMMON", "RARE", "EPIC", "MYTHIC"] as const;
+export const CARD_TYPES = ["ENTERTAINMENT", "UTILITY", "ACADEMIC", "SHOPPING"] as const;
 export const ABILITY_IDS = [
   "OVERCLOCK",
   "REROLL",
@@ -12,7 +11,6 @@ export const ABILITY_IDS = [
 ] as const;
 
 export type CardType = (typeof CARD_TYPES)[number];
-export type Rarity = (typeof RARITIES)[number];
 export type AbilityId = (typeof ABILITY_IDS)[number];
 export type StatName = "ram" | "uselessness" | "shadiness" | "aura";
 export type SelectionSeconds = 15 | 30 | 45 | 60;
@@ -49,7 +47,6 @@ export interface TabCard {
   cardName: string;
   type: CardType;
   stats: Record<StatName, number>;
-  rarity: Rarity;
   abilityId: AbilityId;
   abilityName: string;
   abilityDescription: string;
@@ -85,7 +82,6 @@ export interface RoundResult {
   scores: ScoreBreakdown[];
   winnerId?: string;
   tiedPlayerIds: string[];
-  tabClash?: boolean;
   isSuddenDeath: boolean;
 }
 

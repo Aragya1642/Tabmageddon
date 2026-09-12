@@ -11,7 +11,6 @@ import { resolveBattle, shuffle } from "./gameEngine.js";
 import {
   ABILITY_IDS,
   CARD_TYPES,
-  RARITIES,
   type BrowserTab,
   type GameRoom,
   type Player,
@@ -181,8 +180,10 @@ function resolveLockedRoom(room: GameRoom): void {
     return;
   }
   for (const entry of participants) entry.usedCardIds.push(entry.selectedCardId!);
-  const winner = room.players.find((entry) => entry.id === result.winnerId);
-  if (winner) winner.score += 1;
+  for (const winnerId of result.tiedPlayerIds) {
+    const winner = room.players.find((entry) => entry.id === winnerId);
+    if (winner) winner.score += 1;
+  }
   room.phase = "RESULT";
 }
 
@@ -268,7 +269,6 @@ function validCard(value: unknown): value is TabCard {
     typeof card.domain === "string" &&
     typeof card.cardName === "string" &&
     CARD_TYPES.includes(card.type) &&
-    RARITIES.includes(card.rarity) &&
     ABILITY_IDS.includes(card.abilityId) &&
     Array.isArray(stats) &&
     stats.length === 4 &&

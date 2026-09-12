@@ -10,7 +10,7 @@ interface Props {
   onClick?: () => void;
 }
 
-const TYPE_ICONS = { GRIND: "⚙️", SOCIAL: "💬", BRAINROT: "🌀", UTILITY: "🧰" };
+const TYPE_ICONS = { ENTERTAINMENT: "🎮", UTILITY: "🧰", ACADEMIC: "🎓", SHOPPING: "🛒" };
 
 export function CardView({ card, selected, used, disabled, compact, onClick }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -18,12 +18,11 @@ export function CardView({ card, selected, used, disabled, compact, onClick }: P
     <>
       <button
         type="button"
-        className={`game-card type-${card.type.toLowerCase()} rarity-${card.rarity.toLowerCase()} ${selected ? "selected" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""}`}
+        className={`game-card type-${card.type.toLowerCase()} ${selected ? "selected" : ""} ${used ? "used" : ""} ${compact ? "compact" : ""}`}
         disabled={disabled}
         onClick={onClick ?? (compact ? () => setExpanded(true) : undefined)}
       >
         <div className="card-topline">
-          <span>{card.rarity}</span>
           <span>{TYPE_ICONS[card.type]} {card.type}</span>
         </div>
         <div className="card-title-row">

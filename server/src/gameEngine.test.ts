@@ -21,6 +21,8 @@ test("fallback cards are deterministic in mechanics and legal", () => {
   const other = fallbackCard(tabs[1]!);
   assert.deepEqual(first.stats, second.stats);
   assert.equal(first.type, second.type);
+  assert.equal(first.type, "ENTERTAINMENT");
+  assert.equal(other.type, "ACADEMIC");
   assert.equal(first.abilityId, second.abilityId);
   assert.equal(Object.values(first.stats).reduce((sum, stat) => sum + stat, 0), 20);
   assert.notEqual(first.cardName, tabs[0]!.title);
@@ -64,4 +66,47 @@ test("battle resolution produces one synchronized breakdown per player", () => {
   assert.equal(result.scores.length, 2);
   assert.ok(result.winnerId);
   assert.ok(result.scores.every((score) => Number.isFinite(score.finalScore)));
+});
+
+test("ordinary exact ties keep every top scorer", () => {
+  const players: Player[] = tabs.map((tab, index) => {
+    const card = {
+      ...fallbackCard(tab),
+      type: "UTILITY" as const,
+      stats: { ram: 5, uselessness: 5, shadiness: 5, aura: 5 },
+      abilityId: "TYPE_GUARD" as const,
+    };
+    return {
+      id: `tie-${index}`,
+      socketId: `tie-socket-${index}`,
+      name: `Tie ${index}`,
+      deck: [card],
+      usedCardIds: [],
+      selectedCardId: card.id,
+      locked: true,
+      score: 0,
+    };
+  });
+  const crisis: Crisis = {
+    id: "tie",
+    name: "Perfect Tie",
+    description: "Highest aura wins.",
+    stat: "aura",
+    direction: "HIGH",
+  };
+  const room: GameRoom = {
+    code: "TIE1",
+    hostId: players[0]!.id,
+    roundCount: 3,
+    selectionSeconds: 30,
+    currentRound: 1,
+    phase: "SELECTING",
+    players,
+    crisisPool: [crisis],
+    remainingCrises: [],
+    currentCrisis: crisis,
+  };
+  const result = resolveBattle(room, crisis, players, false, () => 0.5);
+  assert.equal(result.winnerId, undefined);
+  assert.deepEqual(result.tiedPlayerIds, players.map((player) => player.id));
 });

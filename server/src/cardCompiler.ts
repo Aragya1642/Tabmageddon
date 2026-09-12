@@ -2,11 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   ABILITY_IDS,
   CARD_TYPES,
-  RARITIES,
   type AbilityId,
   type BrowserTab,
   type CardType,
-  type Rarity,
   type StatName,
   type TabCard,
 } from "./types.js";
@@ -23,10 +21,10 @@ const ABILITY_COPY: Record<AbilityId, [string, string]> = {
   CHAOS: ["Clear Cache and Pray", "50% chance of +3; otherwise -1."],
 };
 const FALLBACK_NAMES: Record<CardType, string[]> = {
-  GRIND: ["Deadline Devourer", "The Productivity Theater", "Academic Weapon", "Inbox Final Boss", "The Unfinished Business"],
-  SOCIAL: ["Notification Necromancer", "The Reply-All Menace", "Parasocial Champion", "Group Chat Oracle", "The Discourse Machine"],
-  BRAINROT: ["The Infinite Scroll", "Autoplay's Chosen", "Dopamine Overdraft", "One More Video", "The Attention Vacuum"],
+  ENTERTAINMENT: ["The Infinite Scroll", "Autoplay's Chosen", "Dopamine Overdraft", "One More Video", "The Attention Vacuum"],
   UTILITY: ["The Swiss Army Tab", "Answer Engine", "Bookmark in Denial", "The Helpful Hoarder", "Emergency Reference"],
+  ACADEMIC: ["Deadline Devourer", "The Productivity Theater", "Academic Weapon", "Citation Final Boss", "The Unfinished Business"],
+  SHOPPING: ["Cart Abandoner", "The Impulse Merchant", "Free Shipping Prophet", "Checkout Final Boss", "The Wallet Vacuum"],
 };
 const FALLBACK_ROASTS = [
   "You called this research, but your search history calls it a cry for help.",
@@ -70,9 +68,9 @@ export function normalizeStats(input: Partial<Record<StatName, unknown>>, seed =
 
 function inferType(tab: BrowserTab, hash: number[]): CardType {
   const text = `${tab.domain} ${tab.title}`.toLowerCase();
-  if (/github|docs|canvas|notion|slack|gmail|course|learn|work/.test(text)) return "GRIND";
-  if (/reddit|discord|twitter|x\.com|facebook|instagram|linkedin|social/.test(text)) return "SOCIAL";
-  if (/youtube|netflix|twitch|spotify|game|meme|tiktok/.test(text)) return "BRAINROT";
+  if (/amazon|ebay|etsy|shop|shopping|cart|checkout|store|marketplace|doordash|ubereats/.test(text)) return "SHOPPING";
+  if (/github|docs|canvas|notion|slack|gmail|course|learn|school|research|paper|scholar|linkedin|work/.test(text)) return "ACADEMIC";
+  if (/youtube|netflix|twitch|spotify|game|meme|tiktok|reddit|discord|twitter|x\.com|facebook|instagram|social/.test(text)) return "ENTERTAINMENT";
   if (/google|stackoverflow|maps|weather|localhost|tool|search/.test(text)) return "UTILITY";
   return CARD_TYPES[hash[4]! % CARD_TYPES.length]!;
 }
@@ -99,11 +97,8 @@ export function fallbackCard(tab: BrowserTab): TabCard {
   const rawStats = Object.fromEntries(
     STAT_NAMES.map((name, index) => [name, 1 + (hash[index]! % 9)]),
   ) as Record<StatName, number>;
-  const rarityRoll = hash[6]!;
-  const rarity: Rarity =
-    rarityRoll > 246 ? "MYTHIC" : rarityRoll > 210 ? "EPIC" : rarityRoll > 120 ? "RARE" : "COMMON";
   const token = titleToken(tab);
-  const baseName = FALLBACK_NAMES[type][hash[7]! % FALLBACK_NAMES[type].length]!;
+  const baseName = FALLBACK_NAMES[type][hash[6]! % FALLBACK_NAMES[type].length]!;
   const cardName = `${baseName}: ${token}`.slice(0, 48);
   const rawRoast = tab.audible
     ? `Still playing audio from ${tab.domain} because silence might reveal your choices.`
@@ -122,7 +117,6 @@ export function fallbackCard(tab: BrowserTab): TabCard {
     cardName,
     type,
     stats: normalizeStats(rawStats, seed),
-    rarity,
     abilityId,
     abilityName,
     abilityDescription,
@@ -160,7 +154,6 @@ function validateGeminiCard(value: unknown, tab: BrowserTab): TabCard {
         : fallback.stats,
       `${tab.domain}|${tab.title}`,
     ),
-    rarity: legalEnum(candidate.rarity, RARITIES, fallback.rarity),
     abilityId,
     abilityName: safeText(candidate.abilityName, defaultAbility[0], 40),
     abilityDescription: defaultAbility[1],
@@ -175,8 +168,10 @@ async function compileWithGemini(tabs: BrowserTab[]): Promise<TabCard[]> {
   const prompt = `You are the semantic compiler for Tabmaggedon, an internet-themed card game.
 Interpret each browser tab and return one object per input, in the same order.
 Allowed types: ${CARD_TYPES.join(", ")}.
+ACADEMIC means school, research, or focused work. ENTERTAINMENT means media, games, or social feeds.
+SHOPPING means stores, carts, delivery, or marketplaces. UTILITY means tools, search, references, maps,
+or practical information.
 Allowed abilities: ${ABILITY_IDS.join(", ")}.
-Allowed rarities: ${RARITIES.join(", ")}. Rarity is cosmetic; MYTHIC means unusual or hilarious.
 Stats are integers from 1 to 9 for ram, uselessness, shadiness, and aura. They should express semantic
 traits; a deterministic validator will rebalance them. Never invent mechanics.
 cardName must be an original, dramatic card nickname inspired by the page's meaning. Never copy or
@@ -184,7 +179,7 @@ slightly truncate the original tab title or simply use the site/domain name. roa
 page-specific quote that jokes about why this exact tab is open. Every cardName and roast in the deck
 must be distinct. Keep cardName under 48 characters, abilityName under 40, and roast under 120.
 Return only JSON in this shape:
-{"cards":[{"cardName":"...","type":"GRIND","stats":{"ram":5,"uselessness":5,"shadiness":5,"aura":5},"rarity":"COMMON","abilityId":"OVERCLOCK","abilityName":"...","roast":"..."}]}
+{"cards":[{"cardName":"...","type":"ACADEMIC","stats":{"ram":5,"uselessness":5,"shadiness":5,"aura":5},"abilityId":"OVERCLOCK","abilityName":"...","roast":"..."}]}
 
 Input tabs:
 ${JSON.stringify(tabs.map(({ title, domain, pinned, audible, discarded, active, lastAccessed }) => ({

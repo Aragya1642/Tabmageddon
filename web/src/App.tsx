@@ -111,6 +111,7 @@ function DeckOverlay({ player, onClose }: { player: Player; onClose: () => void 
     <div className="modal-backdrop deck-backdrop" role="presentation" onClick={onClose}>
       <section className="deck-modal" role="dialog" aria-modal="true" aria-label="Your deck" onClick={(event) => event.stopPropagation()}>
         <div className="section-heading"><div><p className="eyebrow">AVAILABLE ANYTIME</p><h2>Your deck</h2></div><button onClick={onClose}>CLOSE ×</button></div>
+        <p className="type-loop">🎓 ACADEMIC → 🎮 ENTERTAINMENT → 🛒 SHOPPING → 🧰 UTILITY → 🎓 ACADEMIC</p>
         <div className="card-grid">
           {player.deck.map((card) => <CardView key={card.id} card={card} used={player.usedCardIds.includes(card.id)} disabled />)}
         </div>
@@ -316,7 +317,7 @@ function Battle({ room, me }: { room: Room; me: Player }) {
       ) : room.currentCrisis && (
         <div className="current-crisis">
           <p className="eyebrow">🚨 ROUND {room.currentRound} / {room.roundCount}</p>
-          <h2>{room.currentCrisis.name}</h2><p>{room.currentCrisis.description}</p>
+          <h2>{room.currentCrisis.name}</h2>
         </div>
       )}
       <SelectionTimer deadline={room.selectionDeadline} />
@@ -361,19 +362,25 @@ function Scoreboard({ room }: { room: Room }) {
 function Result({ room, playerId }: { room: Room; playerId: string }) {
   const result = room.lastResult;
   if (!result) return null;
-  const title = result.winnerId
-    ? `${playerName(room, result.winnerId)} WINS${result.tabClash ? " THE TAB CLASH" : ""}`
-    : "THE TIE REFUSES TO DIE";
+  const isTie = result.tiedPlayerIds.length > 1;
+  const tiedNames = result.tiedPlayerIds.map((id) => playerName(room, id)).join(" & ");
+  const title = isTie
+    ? result.isSuddenDeath ? "SUDDEN DEATH TIE — RUN IT BACK" : `${tiedNames} TIE — EACH GETS A POINT`
+    : `${playerName(room, result.winnerId)} WINS`;
   return (
     <section className="panel result-screen">
       <Scoreboard room={room} />
       <p className="eyebrow">{result.isSuddenDeath ? "☠ SUDDEN DEATH RESULT" : `ROUND ${room.currentRound} RESULT`}</p>
       <h2>{result.crisis.name}</h2>
+      <p className="crisis-rule">{result.crisis.description}</p>
       <h1>{title}</h1>
       <div className="result-grid">
-        {result.scores.map((score) => (
-          <div className={score.playerId === result.winnerId ? "result-column winner-column" : "result-column"} key={score.playerId}>
-            <h3>{playerName(room, score.playerId)}</h3>
+        {result.scores.map((score) => {
+          const tied = isTie && result.tiedPlayerIds.includes(score.playerId);
+          const won = !isTie && score.playerId === result.winnerId;
+          return (
+          <div className={`result-column ${won ? "winner-column" : ""} ${tied ? "tie-column" : ""}`} key={score.playerId}>
+            <h3>{playerName(room, score.playerId)}{tied && <span className="tie-badge">TIE{result.isSuddenDeath ? "" : " +1"}</span>}</h3>
             <CardView card={score.card} compact />
             <div className="math-row"><span>Crisis score</span><b>{score.crisisScore}</b></div>
             <div className="math-row"><span>Type matchup</span><b>{score.typeModifier >= 0 ? "+" : ""}{score.typeModifier}</b></div>
@@ -381,7 +388,7 @@ function Result({ room, playerId }: { room: Room; playerId: string }) {
             <div className="math-row"><span>Luck</span><b>{score.luck >= 0 ? "+" : ""}{score.luck}</b></div>
             <div className="math-row total"><span>FINAL</span><b>{score.finalScore}</b></div>
           </div>
-        ))}
+        )})}
       </div>
       {room.hostId === playerId ? <button className="primary big-action" onClick={() => socket.emit("NEXT_ROUND")}>{room.currentRound >= room.roundCount || result.isSuddenDeath ? "SETTLE THE SCORE" : "NEXT CRISIS"}</button> : <p className="center-note">Waiting for the host…</p>}
     </section>
@@ -403,6 +410,9 @@ function GameOver({ room }: { room: Room }) {
 function TabRehab({ me, onError }: { me: Player; onError: (message: string) => void }) {
   const [decisions, setDecisions] = useState<Record<string, "kept" | "closed">>({});
   const remaining = useMemo(() => me.deck.filter((card) => !decisions[card.id]).length, [decisions, me.deck]);
+  const closedCount = useMemo(() => Object.values(decisions).filter((decision) => decision === "closed").length, [decisions]);
+  const closedPercent = Math.round((closedCount / me.deck.length) * 100);
+  const pendingPercent = 100 - closedPercent;
   async function close(card: TabCard) {
     try {
       await closeLiveTab(card.tabId, card.originalUrl);
@@ -417,6 +427,10 @@ function TabRehab({ me, onError }: { me: Player; onError: (message: string) => v
       <h1>TAB REHAB</h1>
       <p className="lede">The battle is over. Do these tabs deserve to survive?</p>
       <p>{remaining} decisions remaining. Nothing closes without your click.</p>
+      <div className="cleanup-progress">
+        <div><span>PENDING / OPEN</span><b>{pendingPercent}%</b><span>CLOSED</span><b>{closedPercent}%</b></div>
+        <div className="cleanup-track"><span style={{ width: `${closedPercent}%` }} /></div>
+      </div>
       <div className="rehab-list">
         {me.deck.map((card) => (
           <div className={`rehab-row ${decisions[card.id] ?? ""}`} key={card.id}>

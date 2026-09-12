@@ -21,6 +21,15 @@ function playerName(room: Room, id?: string): string {
   return room.players.find((player) => player.id === id)?.name ?? "Nobody";
 }
 
+function shuffled<T>(items: readonly T[]): T[] {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex]!, result[index]!];
+  }
+  return result;
+}
+
 function App() {
   const [room, setRoom] = useState<Room>();
   const [playerId, setPlayerId] = useState("");
@@ -62,10 +71,19 @@ function App() {
     setRoom(reply.room);
   }
 
+  function goHome() {
+    if (room) socket.emit("LEAVE_ROOM");
+    setRoom(undefined);
+    setPlayerId("");
+    setDeckOpen(false);
+    setCopied(false);
+    setError("");
+  }
+
   return (
     <main>
       <header className="site-header">
-        <div className="brand">TAB<span>MAGGEDON</span></div>
+        <button type="button" className="brand" onClick={goHome}>TAB<span>MAGGEDON</span></button>
         <div className="header-actions">
           {currentPlayer && currentPlayer.deck.length > 0 && <button onClick={() => setDeckOpen(true)}>VIEW MY DECK</button>}
           {room && <button className="room-pill" onClick={() => void copyRoomCode()}>ROOM <b>{room.code}</b> <span>{copied ? "COPIED!" : "COPY"}</span></button>}
@@ -193,18 +211,25 @@ function TabPicker({ required }: { required: number }) {
     setStatus("Asking the extension for your tabs…");
     try {
       const liveTabs = await importLiveTabs();
-      setTabs(liveTabs);
-      setSelected([]);
-      setStatus(`${liveTabs.length} live tabs found.`);
+      const liveDomains = new Set(liveTabs.map((tab) => tab.domain));
+      const shortage = Math.max(0, required - liveTabs.length);
+      const presets = shuffled(DEMO_TABS.filter((tab) => !liveDomains.has(tab.domain))).slice(0, shortage);
+      const nextTabs = [...liveTabs, ...presets];
+      setTabs(nextTabs);
+      setSelected((current) => current.filter((id) => nextTabs.some((tab) => tab.tabId === id)).slice(0, required));
+      setStatus(shortage > 0
+        ? `${liveTabs.length} live tab${liveTabs.length === 1 ? "" : "s"} found. Added ${presets.length} random preset${presets.length === 1 ? "" : "s"} so you can play.`
+        : `${liveTabs.length} live tabs found. List refreshed.`);
     } catch (loadError) {
       setStatus(loadError instanceof Error ? loadError.message : "Could not import tabs.");
     }
   }
 
   function loadDemo() {
-    setTabs(DEMO_TABS);
-    setSelected(DEMO_TABS.slice(0, required).map((tab) => tab.tabId));
-    setStatus("Demo tabs loaded. The fallback path is ready.");
+    const presets = shuffled(DEMO_TABS);
+    setTabs(presets);
+    setSelected(presets.slice(0, required).map((tab) => tab.tabId));
+    setStatus("20 preset tabs shuffled. A random starting deck is selected.");
   }
 
   function toggle(tabId: number) {
@@ -241,14 +266,17 @@ function TabPicker({ required }: { required: number }) {
         <div><h3>Select your fighters</h3><p>Pick weird tabs. Balanced does not mean normal.</p></div>
         <b>{selected.length} / {required}</b>
       </div>
-      {tabs.length === 0 && <div className="import-actions"><button className="primary" onClick={loadLive}>IMPORT MY TABS</button><button onClick={loadDemo}>USE DEMO TABS</button></div>}
+      <div className="import-actions">
+        <button className="primary" disabled={forging} onClick={loadLive}>{tabs.length === 0 ? "IMPORT MY TABS" : "REFRESH LIVE TABS"}</button>
+        <button disabled={forging} onClick={loadDemo}>USE PRESET TABS</button>
+      </div>
       {status && <p className="status">{status}</p>}
       <div className="tab-list">
         {tabs.map((tab) => (
           <button type="button" key={tab.tabId} className={selected.includes(tab.tabId) ? "tab-option selected-tab" : "tab-option"} onClick={() => toggle(tab.tabId)}>
             <span className="checkbox">{selected.includes(tab.tabId) ? "✓" : ""}</span>
             {tab.faviconUrl ? <img src={tab.faviconUrl} alt="" /> : <span>🌐</span>}
-            <span><strong>{tab.title}</strong><small>{tab.domain}{tab.audible ? " · 🔊 playing audio" : ""}</small></span>
+            <span><strong>{tab.title}</strong><small>{tab.domain}{tab.tabId < 0 ? " · PRESET" : ""}{tab.audible ? " · 🔊 playing audio" : ""}</small></span>
           </button>
         ))}
       </div>

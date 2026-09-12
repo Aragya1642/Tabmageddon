@@ -277,6 +277,31 @@ function validCard(value: unknown): value is TabCard {
   );
 }
 
+function removePlayer(room: GameRoom, socketId: string): void {
+  const departing = room.players.find((player) => player.socketId === socketId);
+  if (!departing) return;
+  room.players = room.players.filter((player) => player.socketId !== socketId);
+  room.suddenDeathPlayerIds = room.suddenDeathPlayerIds?.filter((id) => id !== departing.id);
+  if (room.players.length === 0) {
+    clearSelectionTimer(room);
+    rooms.delete(room.code);
+    return;
+  }
+  if (!room.players.some((player) => player.id === room.hostId)) room.hostId = room.players[0]!.id;
+  if (room.phase !== "LOBBY" && room.players.length === 1) {
+    clearSelectionTimer(room);
+    room.winnerId = room.players[0]!.id;
+    room.phase = "GAME_OVER";
+  } else if (room.phase.startsWith("SUDDEN_DEATH") && room.suddenDeathPlayerIds?.length === 1) {
+    clearSelectionTimer(room);
+    room.winnerId = room.suddenDeathPlayerIds[0];
+    room.phase = "GAME_OVER";
+  } else if (["SELECTING", "SUDDEN_DEATH_SELECTING"].includes(room.phase)) {
+    resolveLockedRoom(room);
+  }
+  broadcastRoom(room);
+}
+
 io.on("connection", (socket) => {
   socket.on("CREATE_ROOM", (payload: { name?: unknown; roundCount?: unknown }, callback?: (data: unknown) => void) => {
     try {
@@ -488,15 +513,16 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("LEAVE_ROOM", () => {
+    const room = roomForSocket(socket);
+    if (!room) return;
+    socket.leave(room.code);
+    removePlayer(room, socket.id);
+  });
+
   socket.on("disconnect", () => {
     const room = roomForSocket(socket);
-    if (!room || room.phase !== "LOBBY") return;
-    room.players = room.players.filter((player) => player.socketId !== socket.id);
-    if (room.players.length === 0) rooms.delete(room.code);
-    else {
-      if (!room.players.some((player) => player.id === room.hostId)) room.hostId = room.players[0]!.id;
-      broadcastRoom(room);
-    }
+    if (room) removePlayer(room, socket.id);
   });
 });
 

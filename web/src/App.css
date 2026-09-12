@@ -1,7 +1,7 @@
 #root { min-height: 100vh; }
 main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding-bottom: 64px; }
 .site-header { height: 76px; display: flex; align-items: center; justify-content: space-between; }
-.brand { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
+.brand { padding: 0; color: inherit; background: none; border: 0; border-radius: 0; font-size: 24px; font-weight: 900; letter-spacing: -1px; }
 .brand span, h1 span, h2 span { color: var(--pink); }
 .header-actions { display: flex; gap: 8px; align-items: center; }
 .header-actions > button { font-size: 10px; padding: 8px 12px; }

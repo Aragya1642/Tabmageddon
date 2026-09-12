@@ -1,15 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TM">
-  <style>
-    text {
-      font-family: "Press Start 2P", monospace;
-      font-size: 28px;
-      font-weight: 400;
-      dominant-baseline: central;
-      text-rendering: geometricPrecision;
-    }
-  </style>
-  <rect width="64" height="64" rx="8" fill="#FFFDF8"/>
-  <rect x="4" y="4" width="56" height="56" rx="4" fill="none" stroke="#755041" stroke-width="4"/>
-  <text x="7" y="36" fill="#1C1210">T</text>
-  <text x="31" y="36" fill="#931A23">M</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TM" shape-rendering="crispEdges">
+  <g fill="#FFFFFF">
+    <rect x="1" y="7" width="30" height="12"/>
+    <rect x="10" y="15" width="14" height="42"/>
+    <rect x="31" y="7" width="12" height="50"/>
+    <rect x="38" y="14" width="10" height="23"/>
+    <rect x="43" y="22" width="10" height="23"/>
+    <rect x="48" y="14" width="10" height="23"/>
+    <rect x="53" y="7" width="10" height="50"/>
+  </g>
+  <g fill="#1C1210">
+    <rect x="5" y="11" width="22" height="6"/>
+    <rect x="13" y="17" width="8" height="36"/>
+  </g>
+  <g fill="#931A23">
+    <rect x="34" y="11" width="6" height="42"/>
+    <rect x="41" y="18" width="5" height="16"/>
+    <rect x="46" y="26" width="5" height="16"/>
+    <rect x="51" y="18" width="5" height="16"/>
+    <rect x="56" y="11" width="5" height="42"/>
+  </g>
 </svg>

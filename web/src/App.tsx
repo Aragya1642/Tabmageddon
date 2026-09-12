@@ -409,10 +409,60 @@ function GameOver({ room }: { room: Room }) {
 
 function TabRehab({ me, onError }: { me: Player; onError: (message: string) => void }) {
   const [decisions, setDecisions] = useState<Record<string, "kept" | "closed">>({});
-  const remaining = useMemo(() => me.deck.filter((card) => !decisions[card.id]).length, [decisions, me.deck]);
-  const closedCount = useMemo(() => Object.values(decisions).filter((decision) => decision === "closed").length, [decisions]);
-  const closedPercent = Math.round((closedCount / me.deck.length) * 100);
+  const [extraCards, setExtraCards] = useState<TabCard[]>([]);
+  const [loadingExtras, setLoadingExtras] = useState(false);
+  const [extraStatus, setExtraStatus] = useState("");
+  const allCards = useMemo(() => [...me.deck, ...extraCards], [extraCards, me.deck]);
+  const remaining = useMemo(() => allCards.filter((card) => !decisions[card.id]).length, [allCards, decisions]);
+  const closedCount = useMemo(
+    () => allCards.filter((card) => decisions[card.id] === "closed").length,
+    [allCards, decisions],
+  );
+  const closedPercent = Math.round((closedCount / allCards.length) * 100);
   const pendingPercent = 100 - closedPercent;
+
+  async function loadRemainingTabs() {
+    setLoadingExtras(true);
+    setExtraStatus("Importing the rest of your browser and asking Gemini to sort it…");
+    try {
+      const liveTabs = await importLiveTabs();
+      const gameTabIds = new Set(me.deck.map((card) => card.tabId));
+      const remainingTabs = liveTabs.filter((tab) => !gameTabIds.has(tab.tabId));
+      if (remainingTabs.length === 0) {
+        setExtraCards([]);
+        setExtraStatus("No additional live tabs found.");
+        return;
+      }
+      const batches: BrowserTab[][] = [];
+      for (let index = 0; index < remainingTabs.length; index += 50) {
+        batches.push(remainingTabs.slice(index, index + 50));
+      }
+      const results = await Promise.all(batches.map(async (tabs) => {
+        const response = await fetch(`${SERVER_URL}/api/rehab`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ tabs }),
+        });
+        const result = await response.json() as { cards?: TabCard[]; source?: string; error?: string };
+        if (!response.ok || !result.cards) throw new Error(result.error || "Tab sorting failed.");
+        return result;
+      }));
+      const sorted = results
+        .flatMap((result) => result.cards ?? [])
+        .sort((left, right) => right.stats.uselessness - left.stats.uselessness);
+      setExtraCards(sorted);
+      setExtraStatus(results.every((result) => result.source === "gemini")
+        ? `Gemini sorted ${sorted.length} remaining tabs. Least useful appear first.`
+        : `Sorted ${sorted.length} remaining tabs with the deterministic backup. Least useful appear first.`);
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : "Could not load remaining tabs.";
+      setExtraStatus(message);
+      onError(message);
+    } finally {
+      setLoadingExtras(false);
+    }
+  }
+
   async function close(card: TabCard) {
     try {
       await closeLiveTab(card.tabId, card.originalUrl);
@@ -427,10 +477,15 @@ function TabRehab({ me, onError }: { me: Player; onError: (message: string) => v
       <h1>TAB REHAB</h1>
       <p className="lede">The battle is over. Do these tabs deserve to survive?</p>
       <p>{remaining} decisions remaining. Nothing closes without your click.</p>
+      <button className="primary load-remaining" disabled={loadingExtras} onClick={() => void loadRemainingTabs()}>
+        {loadingExtras ? "GEMINI IS SORTING…" : extraCards.length > 0 ? "REFRESH REMAINING TABS" : "LOAD ALL REMAINING TABS"}
+      </button>
+      {extraStatus && <p className="status">{extraStatus}</p>}
       <div className="cleanup-progress">
         <div><span>PENDING / OPEN</span><b>{pendingPercent}%</b><span>CLOSED</span><b>{closedPercent}%</b></div>
         <div className="cleanup-track"><span style={{ width: `${closedPercent}%` }} /></div>
       </div>
+      <h3 className="rehab-section-title">GAME TABS</h3>
       <div className="rehab-list">
         {me.deck.map((card) => (
           <div className={`rehab-row ${decisions[card.id] ?? ""}`} key={card.id}>
@@ -441,6 +496,32 @@ function TabRehab({ me, onError }: { me: Player; onError: (message: string) => v
           </div>
         ))}
       </div>
+      {extraCards.length > 0 && (
+        <>
+          <h3 className="rehab-section-title">REMAINING TABS · LEAST USEFUL FIRST</h3>
+          <div className="rehab-list extra-tabs">
+            {extraCards.map((card) => {
+              const usefulness = 10 - card.stats.uselessness;
+              const recommendation = usefulness <= 3 ? "CONSIDER CLOSING" : usefulness >= 7 ? "LIKELY USEFUL" : "REVIEW";
+              return (
+                <div className={`rehab-row ${decisions[card.id] ?? ""}`} key={card.id}>
+                  <div className="rehab-card-info">
+                    <CardView card={card} compact />
+                    <div className="gemini-sort">
+                      <span>{card.type}</span>
+                      <b>{usefulness}/9 USEFULNESS</b>
+                      <em>{recommendation}</em>
+                    </div>
+                  </div>
+                  {decisions[card.id] ? <strong className="decision">{decisions[card.id] === "closed" ? "CLOSED ✕" : "KEPT ✓"}</strong> : (
+                    <div><button onClick={() => setDecisions((current) => ({ ...current, [card.id]: "kept" }))}>KEEP</button><button className="danger" onClick={() => void close(card)}>CLOSE TAB</button></div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
       {remaining === 0 && <h2>Your browser is now slightly less doomed.</h2>}
     </section>
   );

@@ -34,11 +34,12 @@ fallback compiler. To enable Gemini, set `GEMINI_API_KEY` in `server/.env`.
 5. Reload the Tabmaggedon web page.
 6. Click **IMPORT MY TABS**.
 
-The bridge runs only on local Tabmaggedon development origins. It strips URL
-queries and hashes before returning tab metadata. The complete browser session
-stays local; only cards the player selects are sent to the server. A real tab
-can only be closed from Tab Rehab after an explicit click, and the extension
-checks that the tab URL has not changed.
+The bridge runs only on known Tabmaggedon origins. It strips URL queries and
+hashes before returning tab metadata. Only selected game tabs leave the browser
+during deck forging. On the final screen, the player can explicitly request
+temporary Gemini sorting of the remaining live tabs. A real tab can only be
+closed from Tab Rehab after an explicit click, and the extension checks that the
+tab URL has not changed.
 
 ## Commands
 
@@ -57,7 +58,8 @@ npm test         # test balancing and battle resolution
 5. Secretly choose and lock one unused card each round.
 6. Resolve stats, type counters, whitelisted abilities, and server luck.
 7. Break match ties through uncertain Sudden Death.
-8. Explicitly keep or close each of your real game tabs in Tab Rehab.
+8. Keep or explicitly close game tabs, with optional Gemini sorting of all
+   remaining live tabs in Tab Rehab.
 
 Gemini performs semantic interpretation only. The server validates cards,
 normalizes every stat budget to exactly 20, rejects illegal moves, generates

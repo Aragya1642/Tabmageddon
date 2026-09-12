@@ -70,6 +70,31 @@ app.post("/api/compile", async (request, response) => {
   response.json(await compileCards(tabs));
 });
 
+app.post("/api/rehab", async (request, response) => {
+  const rawTabs = (request.body as { tabs?: unknown })?.tabs;
+  if (!Array.isArray(rawTabs) || rawTabs.length > 50 || !rawTabs.every(isBrowserTab)) {
+    response.status(400).json({ error: "Send up to 50 valid browser tabs." });
+    return;
+  }
+  const tabs = rawTabs.map((raw) => {
+    const cleaned = sanitizeUrl(raw.url);
+    return {
+      ...raw,
+      title: raw.title.slice(0, 180),
+      url: cleaned.url,
+      domain: cleaned.domain,
+      faviconUrl: typeof raw.faviconUrl === "string" ? raw.faviconUrl.slice(0, 500) : undefined,
+    };
+  });
+  const batches: BrowserTab[][] = [];
+  for (let index = 0; index < tabs.length; index += 7) batches.push(tabs.slice(index, index + 7));
+  const compiled = await Promise.all(batches.map((batch) => compileCards(batch)));
+  response.json({
+    cards: compiled.flatMap((batch) => batch.cards),
+    source: compiled.length > 0 && compiled.every((batch) => batch.source === "gemini") ? "gemini" : "fallback",
+  });
+});
+
 if (process.env.NODE_ENV === "production") {
   const webDist = resolve(dirname(fileURLToPath(import.meta.url)), "../../web/dist");
   app.use(express.static(webDist));

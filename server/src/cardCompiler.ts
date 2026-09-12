@@ -164,7 +164,7 @@ function validateGeminiCard(value: unknown, tab: BrowserTab): TabCard {
 async function compileWithGemini(tabs: BrowserTab[]): Promise<TabCard[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Gemini is not configured");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const configuredModel = process.env.GEMINI_MODEL || "gemini-3.8-flash";
   const prompt = `You are the semantic compiler for Tabmaggedon, an internet-themed card game.
 Interpret each browser tab and return one object per input, in the same order.
 Allowed types: ${CARD_TYPES.join(", ")}.
@@ -192,19 +192,32 @@ ${JSON.stringify(tabs.map(({ title, domain, pinned, audible, discarded, active, 
     lastAccessed,
   })))}`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
+  const models = [...new Set([configuredModel, "gemini-3.8-flash", "gemini-flash-latest"])];
+  let response: Response | undefined;
+  let lastError: Error | undefined;
+  for (const model of models) {
+    const candidate = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
         contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json", temperature: 0.8 },
+        generationConfig: { responseMimeType: "application/json" },
       }),
       signal: AbortSignal.timeout(12_000),
-    },
-  );
-  if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
+      },
+    );
+    if (candidate.ok) {
+      response = candidate;
+      break;
+    }
+    const detail = (await candidate.text()).replace(/\s+/g, " ").slice(0, 400);
+    lastError = new Error(`Gemini ${model} returned ${candidate.status}: ${detail}`);
+    if (candidate.status !== 404) throw lastError;
+    console.warn(`${lastError.message} Trying the next supported model.`);
+  }
+  if (!response) throw lastError ?? new Error("No Gemini model was available");
   const body = (await response.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };

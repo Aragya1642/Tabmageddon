@@ -71,7 +71,7 @@ Server variables are documented in `server/.env.example`:
 - `PORT` — API and Socket.IO port, default `3001`
 - `CLIENT_ORIGIN` — allowed client origins, comma-separated
 - `GEMINI_API_KEY` — optional and server-only
-- `GEMINI_MODEL` — defaults to `gemini-2.5-flash`
+- `GEMINI_MODEL` — defaults to `gemini-3.8-flash` and retries the current Flash alias on model `404` errors
 
 The web client optionally accepts `VITE_SERVER_URL`; see `web/.env.example`.
 

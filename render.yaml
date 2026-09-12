@@ -15,6 +15,6 @@ services:
       - key: CLIENT_ORIGIN
         value: https://tabmageddon-hackcmu.onrender.com
       - key: GEMINI_MODEL
-        value: gemini-2.5-flash
+        value: gemini-3.8-flash
       - key: GEMINI_API_KEY
         sync: false

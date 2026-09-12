@@ -81,6 +81,7 @@ export interface Player {
   selectedCardId?: string;
   locked: boolean;
   autoLocked?: boolean;
+  readyToContinue?: boolean;
   score: number;
 }
 

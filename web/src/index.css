@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&family=VT323&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&family=VT323&display=swap");
 
 :root {
   font-family: "Pixelify Sans", ui-sans-serif, system-ui, sans-serif;
@@ -54,11 +54,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .game-card:disabled { opacity: 1; }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; image-rendering: pixelated; background:
-  repeating-linear-gradient(0deg, transparent 0 30px, rgba(62,142,76,.09) 30px 32px),
-  repeating-linear-gradient(90deg, transparent 0 30px, rgba(62,142,76,.09) 30px 32px),
-  radial-gradient(circle at 12% 10%, rgba(62, 142, 76, .2), transparent 30rem),
-  radial-gradient(circle at 88% 80%, rgba(127, 143, 69, .12), transparent 28rem),
+body { margin: 0; min-width: 320px; min-height: 100vh; background:
+  radial-gradient(circle at 12% 10%, rgba(62, 142, 76, .16), transparent 30rem),
+  radial-gradient(circle at 88% 80%, rgba(127, 143, 69, .1), transparent 28rem),
   linear-gradient(rgba(4,8,5,.45), rgba(4,8,5,.92)),
   #070a08; }
 button, input, select { font: inherit; }

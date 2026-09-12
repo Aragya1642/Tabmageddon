@@ -142,6 +142,7 @@ function createPlayer(socket: Socket, rawName: unknown): Player {
     deckFinalized: false,
     usedCardIds: [],
     locked: false,
+    readyToContinue: false,
     score: 0,
   };
 }
@@ -192,6 +193,7 @@ function resetChoices(players: Player[]): void {
     player.selectedCardId = undefined;
     player.locked = false;
     player.autoLocked = false;
+    player.readyToContinue = false;
   }
 }
 
@@ -221,16 +223,15 @@ function resolveLockedRoom(room: GameRoom): void {
   room.currentCrisis = crisis;
   const result = resolveBattle(room, crisis, participants, isSuddenDeath);
   room.lastResult = result;
+  for (const player of room.players) player.readyToContinue = false;
   if (isSuddenDeath) {
     room.phase = "SUDDEN_DEATH_RESULT";
-    scheduleAdvance(room);
     return;
   }
   for (const entry of participants) entry.usedCardIds.push(entry.selectedCardId!);
   const winner = room.players.find((entry) => entry.id === result.winnerId);
   if (winner) winner.score += 1;
   room.phase = "RESULT";
-  scheduleAdvance(room);
 }
 
 function startSelectionTimer(room: GameRoom): void {
@@ -325,14 +326,12 @@ function advanceRoom(room: GameRoom): void {
   }
 }
 
-function scheduleAdvance(room: GameRoom): void {
-  clearSelectionTimer(room);
-  roomTimers.set(room.code, setTimeout(() => {
-    const liveRoom = rooms.get(room.code);
-    if (!liveRoom || !["RESULT", "SUDDEN_DEATH_RESULT"].includes(liveRoom.phase)) return;
-    advanceRoom(liveRoom);
-    broadcastRoom(liveRoom);
-  }, 3500));
+function tryAdvanceFromResults(room: GameRoom): void {
+  if (!["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase)) return;
+  const voters = room.players.filter((player) => player.connected);
+  if (voters.length === 0 || voters.some((player) => !player.readyToContinue)) return;
+  for (const player of room.players) player.readyToContinue = false;
+  advanceRoom(room);
 }
 
 function validCard(value: unknown): value is TabCard {
@@ -564,6 +563,19 @@ io.on("connection", (socket) => {
       if (typeof cardId !== "string" || !player.deck.some((card) => card.id === cardId)) throw new Error("That card is not yours.");
       if (room.phase === "SELECTING" && player.usedCardIds.includes(cardId)) throw new Error("That card was already used.");
       player.selectedCardId = cardId;
+      broadcastRoom(room);
+    } catch (error) {
+      emitError(socket, error);
+    }
+  });
+
+  socket.on("CONTINUE_ROUND", () => {
+    try {
+      const room = roomForSocket(socket);
+      if (!room || !["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase)) throw new Error("Nothing to continue yet.");
+      const player = playerForSocket(room, socket);
+      player.readyToContinue = true;
+      tryAdvanceFromResults(room);
       broadcastRoom(room);
     } catch (error) {
       emitError(socket, error);

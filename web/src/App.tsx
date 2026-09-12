@@ -39,6 +39,33 @@ function rowPattern(total: number): number[] {
   return [3, 2, total - 5];
 }
 
+function PixelField() {
+  const dots = useMemo(() => Array.from({ length: 36 }, (_, index) => ({
+    id: index,
+    left: `${Math.random() * 100}%`,
+    top: `${Math.random() * 100}%`,
+    size: 3 + Math.round(Math.random() * 7),
+    duration: `${7 + Math.random() * 11}s`,
+    delay: `${Math.random() * -10}s`,
+    color: ["#3e8e4c", "#75b86b", "#f1d36b", "#7f8f45", "#1f5a32"][index % 5],
+  })), []);
+  return (
+    <div className="pixel-field" aria-hidden>
+      {dots.map((dot) => (
+        <i key={dot.id} style={{
+          left: dot.left,
+          top: dot.top,
+          width: dot.size,
+          height: dot.size,
+          background: dot.color,
+          animationDuration: dot.duration,
+          animationDelay: dot.delay,
+        }} />
+      ))}
+    </div>
+  );
+}
+
 function CardRows({ children, className = "" }: { children: ReactNode; className?: string }) {
   const items = Children.toArray(children);
   let cursor = 0;
@@ -143,6 +170,7 @@ function App() {
 
   return (
     <main>
+      <PixelField />
       <header className="site-header">
         <button type="button" className="brand" onClick={goHome}>TAB<span>MAGGEDON</span></button>
         <div className="header-actions">
@@ -159,8 +187,8 @@ function App() {
       {room && currentPlayer && ["SELECTING", "SUDDEN_DEATH_SELECTING"].includes(room.phase) && (
         <Battle room={room} me={currentPlayer} />
       )}
-      {room && ["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase) && (
-        <Result room={room} />
+      {room && currentPlayer && ["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase) && (
+        <Result room={room} me={currentPlayer} />
       )}
       {room?.phase === "GAME_OVER" && !rehabOpen && <GameOver room={room} onRehab={() => setRehabOpen(true)} />}
       {room?.phase === "GAME_OVER" && rehabOpen && currentPlayer && <TabRehab me={currentPlayer} onError={setError} onHome={goHome} />}
@@ -299,7 +327,7 @@ function Lobby({ room, me }: { room: Room; me: Player }) {
               const mine = owner?.id === me.id;
               return (
                 <button key={avatar.id} disabled={Boolean(owner && !mine)} className={`avatar-card ${owner ? "taken" : ""} ${mine ? "mine" : ""}`} onClick={() => socket.emit("CLAIM_AVATAR", avatar.id)}>
-                  <span className="avatar-portrait"><AvatarSprite avatarId={avatar.id} size={72} pose={mine ? "ready" : "idle"} /></span>
+                  <span className="avatar-portrait"><AvatarSprite avatarId={avatar.id} size={96} pose={mine ? "ready" : "idle"} /></span>
                   <strong>{avatar.name}</strong><small>{avatar.role}</small>
                   {mine && <em>YOU</em>}
                   {owner && !mine && <em>✓ TAKEN BY {owner.name}</em>}
@@ -508,7 +536,7 @@ function Battle({ room, me }: { room: Room; me: Player }) {
         <div className="arena-players">
           {room.players.map((player, index) => (
             <div className={`battle-avatar slot-${index + 1} ${player.locked ? "locked" : ""}`} key={player.id}>
-              <AvatarSprite avatarId={player.avatarId} size={78} pose={battlePose(room, player)} />
+              <AvatarSprite avatarId={player.avatarId} size={112} pose={battlePose(room, player)} />
               <strong>{player.name}{player.id === me.id ? " · YOU" : ""}</strong>
               <small>{player.score} {player.score === 1 ? "WIN" : "WINS"} · {player.locked ? "🔒 LOCKED" : sudden && !room.suddenDeathPlayerIds?.includes(player.id) ? "SPECTATING" : "CHOOSING"}</small>
             </div>
@@ -571,33 +599,49 @@ function Scoreboard({ room }: { room: Room }) {
   return <div className="scoreboard">{room.players.map((player) => <span key={player.id}><b>{player.score}</b>{player.name}</span>)}</div>;
 }
 
-function Result({ room }: { room: Room }) {
+function Result({ room, me }: { room: Room; me: Player }) {
   const result = room.lastResult;
   if (!result) return null;
   const isTie = result.tiedPlayerIds.length > 1;
   const title = isTie
     ? result.isSuddenDeath ? "SUDDEN DEATH TIE — AGAIN." : `${playerName(room, result.tabClashWinnerId)} WINS TAB CLASH`
     : `${playerName(room, result.winnerId)} WINS`;
+  const waiting = room.players.filter((player) => player.connected && !player.readyToContinue).length;
   return (
-    <section className="panel result-screen fight-result">
+    <section className="panel result-screen">
       <Scoreboard room={room} />
       <p className="eyebrow">{result.isSuddenDeath ? "☠ SUDDEN DEATH RESULT" : `ROUND ${room.currentRound} RESULT`}</p>
       <h2>{result.crisis.name}</h2>
       <p className="crisis-rule">{crisisRule(result.crisis)}</p>
       <h1>{title}</h1>
-      <div className="pixel-fall" aria-hidden>{Array.from({ length: 16 }, (_, index) => <i key={index} style={{ left: `${6 + index * 6}%`, animationDelay: `${index * 40}ms` }} />)}</div>
+      <div className="clash-arena">
+        {result.scores.map((score, index) => {
+          const player = room.players.find((entry) => entry.id === score.playerId);
+          const won = score.playerId === result.winnerId;
+          const pops = [
+            score.abilityModifier !== 0 ? `${score.abilityModifier > 0 ? "+" : ""}${score.abilityModifier}` : "",
+            score.luck !== 0 ? `${score.luck > 0 ? "+" : ""}${score.luck} LUCK` : "",
+            /sabotag/i.test(score.abilityNote) ? "HIT" : "",
+          ].filter(Boolean);
+          return (
+            <div className={`clash-fighter ${won ? "winner" : "loser"} side-${index % 2 === 0 ? "left" : "right"}`} key={score.playerId}>
+              <AvatarSprite avatarId={player?.avatarId} size={128} pose={won ? "attack" : /sabotag/i.test(score.abilityNote) ? "hit" : "lose"} />
+              <strong>{playerName(room, score.playerId)}</strong>
+              <div className="clash-pops">
+                {pops.map((pop) => <span key={pop} className={pop.startsWith("-") || pop === "HIT" ? "bad" : "good"}>{pop}</span>)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
       <div className="result-grid">
         {result.scores.map((score) => {
           const tied = isTie && result.tiedPlayerIds.includes(score.playerId);
           const won = score.playerId === result.winnerId;
-          const sabotaged = /sabotag/i.test(score.abilityNote);
-          const popup = score.abilityModifier !== 0
-            ? `${score.abilityModifier > 0 ? "+" : ""}${score.abilityModifier}`
-            : undefined;
           return (
           <div className={`result-column ${won ? "winner-column" : ""} ${tied ? "tie-column" : ""}`} key={score.playerId}>
             <h3>{playerName(room, score.playerId)}{tied && <span className="tie-badge">{result.isSuddenDeath ? "TIED" : score.playerId === result.tabClashWinnerId ? "TAB CLASH +1" : "TAB CLASH"}</span>}</h3>
-            <CardView card={score.card} compact preview flyIn hit={sabotaged} popup={popup || (score.luck !== 0 ? `${score.luck > 0 ? "+" : ""}${score.luck}` : undefined)} />
+            <CardView card={score.card} compact preview />
             <div className="math-row"><span>Crisis score</span><b>{score.crisisScore}</b></div>
             <div className="math-row"><span>Category matchup</span><b>{score.typeModifier >= 0 ? "+" : ""}{score.typeModifier}</b></div>
             <div className="math-row"><span>{score.abilityNote}</span><b>{score.abilityModifier >= 0 ? "+" : ""}{score.abilityModifier}</b></div>
@@ -606,7 +650,10 @@ function Result({ room }: { room: Room }) {
           </div>
         )})}
       </div>
-      <p className="center-note">{room.currentRound >= room.roundCount || result.isSuddenDeath ? "The arena is settling the score…" : "NEXT CRISIS IN 3…"}</p>
+      <button className="primary big-action" disabled={me.readyToContinue} onClick={() => socket.emit("CONTINUE_ROUND")}>
+        {me.readyToContinue ? "WAITING…" : result.isSuddenDeath || room.currentRound >= room.roundCount ? "CONTINUE" : "NEXT ROUND"}
+      </button>
+      <p className="center-note">{waiting === 0 ? "Advancing…" : `Waiting on ${waiting} player${waiting === 1 ? "" : "s"} to continue.`}</p>
     </section>
   );
 }
@@ -621,9 +668,10 @@ function GameOver({ room, onRehab }: { room: Room; onRehab: () => void }) {
         {standings.slice(0, 3).map((player, index) => (
           <div className={`podium-slot place-${index + 1}`} key={player.id}>
             {index === 0 && <span className="crown">♛</span>}
-            <span className="podium-avatar"><AvatarSprite avatarId={player.avatarId} size={index === 0 ? 110 : 86} pose={index === 0 ? "winner" : "lose"} /></span>
-            <strong>{player.name}</strong><small>{player.score} ROUND {player.score === 1 ? "WIN" : "WINS"}</small>
             <b>{index + 1}</b>
+            <span className="podium-avatar"><AvatarSprite avatarId={player.avatarId} size={index === 0 ? 150 : 120} pose={index === 0 ? "winner" : "lose"} /></span>
+            <strong>{player.name}</strong>
+            <small>{player.score} {player.score === 1 ? "WIN" : "WINS"}</small>
           </div>
         ))}
       </div>

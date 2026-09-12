@@ -272,6 +272,11 @@ button.danger { background: #931A23; border-color: #B3222D; color: #FFF8EA; }.de
 .pool-modal .crisis-pool > div, .pool-modal .crisis-list { grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); }.deck-review > .card-grid { margin: 26px 0; }.review-actions { display: flex; justify-content: center; align-items: center; gap: 12px; }
 .deck-waiting { text-align: center; }.deck-waiting h1 { font-size: clamp(18px,4vw,32px); color: var(--yellow); }.ready-roster { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }.ready-roster span { padding: 9px 13px; border: 1px solid var(--line); color: var(--brown); }.ready-roster .ready { border-color: #8C964F; }
 .deck-waiting .crisis-pool { max-width: 1040px; margin: 32px auto 0; text-align: left; }
+.vault-reveal { text-align: left; }
+.vault-reveal h1 { color: var(--yellow); font-size: clamp(18px, 4vw, 32px); margin: 8px 0 16px; }
+.vault-reveal .lede { max-width: 52rem; margin-bottom: 28px; }
+.vault-reveal .crisis-pool { margin: 0 0 32px; padding: 0; border: 0; background: transparent; }
+.vault-reveal .big-action { display: block; margin: 0 auto; }
 .tab-option:hover:not(:disabled) { transform: none; box-shadow: 0 0 20px rgba(140,150,79,.35); }
 .match-intro { min-height: 650px; display: grid; place-content: center; text-align: center; background: radial-gradient(circle,#FFFFFF 0,#FFFDF8 35%,#F6F1E8 70%); animation: arena-enter 1.8s ease-out; }
 .match-intro h1 { margin: 5px; color: var(--yellow); font-size: clamp(22px,5vw,40px); letter-spacing: 0; }.match-intro h2 { color: var(--muted); }.gate { color: var(--yellow); font-size: 80px; animation: gate-spin 1.8s ease-out; }

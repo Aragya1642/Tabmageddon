@@ -22,6 +22,10 @@ interface RoomReply {
 
 const SESSION_KEY = "tabmaggedon-session";
 
+function vaultSeenKey(code: string, playerId: string): string {
+  return `tabmaggedon-vault:${code}:${playerId}`;
+}
+
 function crisisRule(crisis: Crisis): string {
   return `${crisis.direction === "HIGH" ? "Highest" : "Lowest"} ${crisis.stat.toUpperCase()} wins.`;
 }
@@ -101,6 +105,8 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [rehabOpen, setRehabOpen] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const [vaultSeen, setVaultSeen] = useState(false);
+  const [vaultOpen, setVaultOpen] = useState(false);
 
   useEffect(() => {
     const update = (nextRoom: Room) => setRoom(nextRoom);
@@ -132,6 +138,13 @@ function App() {
   }, []);
 
   const currentPlayer = room?.players.find((player) => player.id === playerId);
+  const showVaultPage = Boolean(
+    room
+    && currentPlayer?.deckFinalized
+    && !vaultSeen
+    && room.crisisPool.length > 0
+    && room.phase !== "LOBBY"
+  );
 
   async function copyRoomCode() {
     if (!room) return;
@@ -152,6 +165,8 @@ function App() {
     setError("");
     setPlayerId(reply.playerId);
     setRoom(reply.room);
+    setVaultSeen(window.sessionStorage.getItem(vaultSeenKey(reply.room.code, reply.playerId)) === "1");
+    setVaultOpen(false);
     if (reply.sessionToken) {
       window.localStorage.setItem(SESSION_KEY, JSON.stringify({ code: reply.room.code, sessionToken: reply.sessionToken }));
     }
@@ -164,8 +179,16 @@ function App() {
     setDeckOpen(false);
     setCopied(false);
     setRehabOpen(false);
+    setVaultSeen(false);
+    setVaultOpen(false);
     setError("");
     window.localStorage.removeItem(SESSION_KEY);
+  }
+
+  function markVaultSeen() {
+    setVaultSeen(true);
+    setVaultOpen(false);
+    if (room && playerId) window.sessionStorage.setItem(vaultSeenKey(room.code, playerId), "1");
   }
 
   return (
@@ -175,24 +198,29 @@ function App() {
         <button type="button" className="brand" onClick={goHome}>TAB<span>MAGGEDON</span></button>
         <div className="header-actions">
           {currentPlayer && currentPlayer.deck.length > 0 && <button onClick={() => setDeckOpen(true)}>VIEW MY DECK</button>}
+          {currentPlayer?.deckFinalized && vaultSeen && room && room.crisisPool.length > 0 && (
+            <button onClick={() => setVaultOpen(true)}>CRISIS VAULT</button>
+          )}
           {room && <button className="room-pill" onClick={() => void copyRoomCode()}>ROOM <b>{room.code}</b> <span>{copied ? "COPIED!" : "COPY"}</span></button>}
         </div>
       </header>
       {reconnecting && <div className="reconnect-overlay">RECONNECTING TO THE ARENA…</div>}
       {error && <button className="error-banner" onClick={() => setError("")}>{error} ×</button>}
       {!room && <Landing onCreate={acceptRoom} onJoin={acceptRoom} />}
-      {room?.phase === "LOBBY" && currentPlayer && <Lobby room={room} me={currentPlayer} />}
-      {room?.phase === "TAB_SELECTION" && currentPlayer && <DeckBuilder room={room} me={currentPlayer} />}
-      {room?.phase === "MATCH_INTRO" && <MatchIntro room={room} />}
-      {room && currentPlayer && ["SELECTING", "SUDDEN_DEATH_SELECTING"].includes(room.phase) && (
+      {showVaultPage && room && <CrisisVaultPage crises={room.crisisPool} onContinue={markVaultSeen} />}
+      {!showVaultPage && room?.phase === "LOBBY" && currentPlayer && <Lobby room={room} me={currentPlayer} />}
+      {!showVaultPage && room?.phase === "TAB_SELECTION" && currentPlayer && <DeckBuilder room={room} me={currentPlayer} />}
+      {!showVaultPage && room?.phase === "MATCH_INTRO" && <MatchIntro room={room} />}
+      {!showVaultPage && room && currentPlayer && ["SELECTING", "SUDDEN_DEATH_SELECTING"].includes(room.phase) && (
         <Battle room={room} me={currentPlayer} />
       )}
-      {room && currentPlayer && ["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase) && (
+      {!showVaultPage && room && currentPlayer && ["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase) && (
         <Result room={room} me={currentPlayer} />
       )}
-      {room?.phase === "GAME_OVER" && !rehabOpen && <GameOver room={room} onRehab={() => setRehabOpen(true)} />}
-      {room?.phase === "GAME_OVER" && rehabOpen && currentPlayer && <TabRehab me={currentPlayer} onError={setError} onHome={goHome} />}
+      {!showVaultPage && room?.phase === "GAME_OVER" && !rehabOpen && <GameOver room={room} onRehab={() => setRehabOpen(true)} />}
+      {!showVaultPage && room?.phase === "GAME_OVER" && rehabOpen && currentPlayer && <TabRehab me={currentPlayer} onError={setError} onHome={goHome} />}
       {deckOpen && currentPlayer && <DeckOverlay player={currentPlayer} onClose={() => setDeckOpen(false)} />}
+      {vaultOpen && room && <PoolModal room={room} onClose={() => setVaultOpen(false)} />}
     </main>
   );
 }
@@ -356,11 +384,15 @@ function Lobby({ room, me }: { room: Room; me: Player }) {
   );
 }
 
-function CrisisPool({ crises }: { crises: Room["crisisPool"] }) {
+function CrisisPool({ crises, hideIntro = false }: { crises: Room["crisisPool"]; hideIntro?: boolean }) {
   return (
     <aside className="crisis-pool">
-      <p className="eyebrow">CRISIS VAULT</p>
-      <h3>You know what's coming. You don't know when.</h3>
+      {!hideIntro && (
+        <>
+          <p className="eyebrow">CRISIS VAULT</p>
+          <h3>You know what's coming. You don't know when.</h3>
+        </>
+      )}
       <div className="crisis-list">{crises.map((crisis) => (
         <article key={crisis.id}>
           <strong>{crisis.name}</strong>
@@ -368,6 +400,18 @@ function CrisisPool({ crises }: { crises: Room["crisisPool"] }) {
         </article>
       ))}</div>
     </aside>
+  );
+}
+
+function CrisisVaultPage({ crises, onContinue }: { crises: Room["crisisPool"]; onContinue: () => void }) {
+  return (
+    <section className="panel vault-reveal">
+      <p className="eyebrow">THE VAULT IS OPEN</p>
+      <h1>CRISIS VAULT</h1>
+      <p className="lede">These are every crisis that can hit this match. Study them now. After this, the vault is one button away.</p>
+      <CrisisPool crises={crises} hideIntro />
+      <button className="primary big-action" onClick={onContinue}>CONTINUE</button>
+    </section>
   );
 }
 
@@ -455,7 +499,6 @@ function DeckBuilder({ room, me }: { room: Room; me: Player }) {
           <div className="ready-roster">{room.players.map((player) => <span key={player.id} className={player.deckFinalized ? "ready" : ""}>{player.deckFinalized ? "READY" : "WAIT"} {player.name}</span>)}</div>
         </div>
         <CardRows>{me.deck.map((card) => <CardView key={card.id} card={card} compact />)}</CardRows>
-        <CrisisPool crises={room.crisisPool} />
       </section>
     );
   }
@@ -464,9 +507,10 @@ function DeckBuilder({ room, me }: { room: Room; me: Player }) {
     return (
       <section className="panel deck-review">
         <div className="section-heading"><div><p className="eyebrow">FORGE COMPLETE</p><h2>REVIEW YOUR DECK</h2></div><b>{forgedCards.length} CARDS / {required} ROUNDS</b></div>
+        <button onClick={() => setPoolOpen(true)}>CRISIS VAULT · {room.crisisPool.length}</button>
         <CardRows>{forgedCards.map((card) => <CardView key={card.id} card={card} />)}</CardRows>
-        <CrisisPool crises={room.crisisPool} />
         <div className="review-actions"><button onClick={() => setForgedCards(undefined)}>BACK TO TABS</button><button className="primary big-action" onClick={() => socket.emit("SUBMIT_DECK", forgedCards)}>FINALIZE MY CARDS</button></div>
+        {poolOpen && <PoolModal room={room} onClose={() => setPoolOpen(false)} />}
       </section>
     );
   }

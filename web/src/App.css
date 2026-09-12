@@ -98,7 +98,7 @@ button.primary { color: #11170f; border: 1px solid #f1d36b; background: linear-g
 .game-card.compact .card-carving { margin-top: 8px; font-size: 18px; }
 .inspect-hint { position: absolute; right: 12px; bottom: 7px; font-size: 10px; font-weight: 700; opacity: .7; letter-spacing: 0; }
 .card-carving { margin-top: 10px; text-align: center; font-size: 22px; opacity: .72; filter: grayscale(.15); }
-.score-popup { position: absolute; top: 18%; left: 50%; z-index: 4; padding: 4px 10px; color: #102a1a; background: #f1d36b; border: 3px solid #111; font-family: VT323, monospace; font-size: 34px; animation: pop-score .9s ease-out both; }
+.score-popup { position: absolute; top: 18%; left: 50%; z-index: 4; padding: 4px 10px; color: #102a1a; background: #f1d36b; border: 3px solid #111; font-family: Oswald, sans-serif; font-size: 34px; animation: pop-score .9s ease-out both; }
 .score-popup.bad { color: #fff; background: #a82727; }
 .sabotage-arrow { position: absolute; top: 8%; right: 6%; z-index: 5; color: #e04b3f; font-size: 42px; text-shadow: 3px 3px 0 #000; animation: sabotage-strike .7s ease-out both; }
 .card-hit { animation: card-recoil .55s ease-out; }

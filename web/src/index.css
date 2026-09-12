@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&family=VT323&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&display=swap");
 
 :root {
   font-family: "Pixelify Sans", ui-sans-serif, system-ui, sans-serif;
@@ -44,10 +44,12 @@ h1, h2, h3, .brand, .room-code, .eyebrow, .current-crisis h2, .sudden-banner h2,
   line-height: 1.35;
 }
 
-.num, .stats b, .scoreboard b, .selection-timer b, .math-row b, .podium-slot > b, .picker-heading > b {
-  font-family: VT323, "Pixelify Sans", monospace;
-  font-weight: 400;
-  letter-spacing: 1px;
+.num, .stats b, .scoreboard b, .selection-timer b, .math-row b, .podium-slot > b, .picker-heading > b,
+.segmented button, .player-count, .rules-grid article > b, .room-panel dd {
+  font-family: Oswald, ui-sans-serif, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 button:disabled { cursor: not-allowed; opacity: .45; }

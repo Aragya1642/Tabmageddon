@@ -45,6 +45,7 @@ export function CardView({ card, selected, used, disabled, compact, onClick }: P
               <span>{card.abilityDescription}</span>
             </div>
             <p className="roast">“{card.roast}”</p>
+            <small className="single-use">SINGLE USE{card.sourceType === "synthetic" ? " · FORGED" : ""}</small>
           </>
         )}
         {used && <span className="used-stamp">USED</span>}

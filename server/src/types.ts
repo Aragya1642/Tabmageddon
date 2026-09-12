@@ -9,20 +9,24 @@ export const ABILITY_IDS = [
   "TYPE_GUARD",
   "CHAOS",
 ] as const;
+export const AVATAR_IDS = ["warden", "gremlin", "technomancer", "scholar", "scavenger", "imp"] as const;
 
 export type CardType = (typeof CARD_TYPES)[number];
 export type AbilityId = (typeof ABILITY_IDS)[number];
+export type AvatarId = (typeof AVATAR_IDS)[number];
 export type StatName = "ram" | "uselessness" | "shadiness" | "aura";
-export type SelectionSeconds = 15 | 30 | 45 | 60;
+export type SelectionSeconds = 30 | 45 | 60;
 export type GamePhase =
   | "LOBBY"
-  | "CRISIS_PREVIEW"
+  | "TAB_SELECTION"
+  | "MATCH_INTRO"
   | "SELECTING"
   | "RESULT"
   | "SUDDEN_DEATH_SELECTING"
   | "SUDDEN_DEATH_RESULT"
   | "GAME_OVER"
-  | "TAB_REHAB";
+  | "TAB_REHAB"
+  | "COMPLETE";
 
 export interface BrowserTab {
   tabId: number;
@@ -51,6 +55,7 @@ export interface TabCard {
   abilityName: string;
   abilityDescription: string;
   roast: string;
+  sourceType?: "real" | "synthetic";
   browserContext?: {
     pinned?: boolean;
     audible?: boolean;
@@ -82,22 +87,29 @@ export interface RoundResult {
   scores: ScoreBreakdown[];
   winnerId?: string;
   tiedPlayerIds: string[];
+  tabClashWinnerId?: string;
   isSuddenDeath: boolean;
 }
 
 export interface Player {
   id: string;
   socketId: string;
+  sessionToken: string;
   name: string;
+  connected: boolean;
+  avatarId?: AvatarId;
   deck: TabCard[];
+  deckFinalized: boolean;
   usedCardIds: string[];
   selectedCardId?: string;
   locked: boolean;
+  autoLocked?: boolean;
   score: number;
 }
 
 export interface GameRoom {
   code: string;
+  createdAt: number;
   hostId: string;
   roundCount: 3 | 5 | 7;
   selectionSeconds: SelectionSeconds;
@@ -114,5 +126,5 @@ export interface GameRoom {
   lastResult?: RoundResult;
 }
 
-export type PublicPlayer = Omit<Player, "socketId">;
-export type PublicRoom = Omit<GameRoom, "players"> & { players: PublicPlayer[] };
+export type PublicPlayer = Omit<Player, "socketId" | "sessionToken">;
+export type PublicRoom = Omit<GameRoom, "players" | "remainingCrises"> & { players: PublicPlayer[] };

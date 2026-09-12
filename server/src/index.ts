@@ -10,7 +10,9 @@ import { CRISES } from "./crises.js";
 import { resolveBattle, shuffle } from "./gameEngine.js";
 import {
   ABILITY_IDS,
+  AVATAR_IDS,
   CARD_TYPES,
+  type AvatarId,
   type BrowserTab,
   type GameRoom,
   type Player,
@@ -111,6 +113,7 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: clientOrigins } });
 const rooms = new Map<string, GameRoom>();
 const roomTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function roomCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -122,7 +125,25 @@ function roomCode(): string {
 }
 
 function cleanName(value: unknown): string {
-  return typeof value === "string" && value.trim() ? value.trim().slice(0, 20) : "Anonymous Tabber";
+  if (typeof value !== "string") throw new Error("Enter a display name.");
+  const name = value.trim();
+  if (name.length < 2 || name.length > 18) throw new Error("Name must be 2–18 characters.");
+  return name;
+}
+
+function createPlayer(socket: Socket, rawName: unknown): Player {
+  return {
+    id: crypto.randomUUID(),
+    socketId: socket.id,
+    sessionToken: crypto.randomUUID(),
+    name: cleanName(rawName),
+    connected: true,
+    deck: [],
+    deckFinalized: false,
+    usedCardIds: [],
+    locked: false,
+    score: 0,
+  };
 }
 
 function roomForSocket(socket: Socket): GameRoom | undefined {
@@ -138,8 +159,9 @@ function playerForSocket(room: GameRoom, socket: Socket): Player {
 function roomView(room: GameRoom, viewerId: string): PublicRoom {
   const revealSelections = ["RESULT", "SUDDEN_DEATH_RESULT", "GAME_OVER", "TAB_REHAB"].includes(room.phase);
   const maskCard = (card: TabCard) => ({ ...card, tabId: -1, originalUrl: "" });
+  const { remainingCrises: _secretCrisisOrder, players: _privatePlayers, ...publicRoom } = room;
   return {
-    ...room,
+    ...publicRoom,
     lastResult: room.lastResult
       ? {
           ...room.lastResult,
@@ -149,12 +171,10 @@ function roomView(room: GameRoom, viewerId: string): PublicRoom {
           })),
         }
       : undefined,
-    players: room.players.map(({ socketId: _socketId, ...player }) => ({
+    players: room.players.map(({ socketId: _socketId, sessionToken: _sessionToken, ...player }) => ({
       ...player,
       selectedCardId: player.id === viewerId || revealSelections ? player.selectedCardId : undefined,
-      deck: player.deck.map((card) =>
-        player.id === viewerId ? card : maskCard(card),
-      ),
+      deck: player.id === viewerId ? player.deck : [],
     })),
   };
 }
@@ -171,6 +191,7 @@ function resetChoices(players: Player[]): void {
   for (const player of players) {
     player.selectedCardId = undefined;
     player.locked = false;
+    player.autoLocked = false;
   }
 }
 
@@ -202,14 +223,14 @@ function resolveLockedRoom(room: GameRoom): void {
   room.lastResult = result;
   if (isSuddenDeath) {
     room.phase = "SUDDEN_DEATH_RESULT";
+    scheduleAdvance(room);
     return;
   }
   for (const entry of participants) entry.usedCardIds.push(entry.selectedCardId!);
-  for (const winnerId of result.tiedPlayerIds) {
-    const winner = room.players.find((entry) => entry.id === winnerId);
-    if (winner) winner.score += 1;
-  }
+  const winner = room.players.find((entry) => entry.id === result.winnerId);
+  if (winner) winner.score += 1;
   room.phase = "RESULT";
+  scheduleAdvance(room);
 }
 
 function startSelectionTimer(room: GameRoom): void {
@@ -230,6 +251,7 @@ function startSelectionTimer(room: GameRoom): void {
           !standardRound || !player.usedCardIds.includes(card.id),
         );
         player.selectedCardId = shuffle(available)[0]?.id;
+        player.autoLocked = true;
       }
       player.locked = true;
     }
@@ -246,6 +268,27 @@ function newSuddenDeath(room: GameRoom, tiedIds: string[]): void {
   resetChoices(room.players);
   room.phase = "SUDDEN_DEATH_SELECTING";
   startSelectionTimer(room);
+}
+
+function beginMatch(room: GameRoom): void {
+  if (room.phase !== "MATCH_INTRO") return;
+  room.currentRound = 1;
+  room.currentCrisis = room.remainingCrises.shift();
+  room.lastResult = undefined;
+  resetChoices(room.players);
+  room.phase = "SELECTING";
+  startSelectionTimer(room);
+}
+
+function scheduleMatchIntro(room: GameRoom): void {
+  clearSelectionTimer(room);
+  room.phase = "MATCH_INTRO";
+  roomTimers.set(room.code, setTimeout(() => {
+    const liveRoom = rooms.get(room.code);
+    if (!liveRoom || liveRoom.phase !== "MATCH_INTRO") return;
+    beginMatch(liveRoom);
+    broadcastRoom(liveRoom);
+  }, 1800));
 }
 
 function advanceRoom(room: GameRoom): void {
@@ -282,6 +325,16 @@ function advanceRoom(room: GameRoom): void {
   }
 }
 
+function scheduleAdvance(room: GameRoom): void {
+  clearSelectionTimer(room);
+  roomTimers.set(room.code, setTimeout(() => {
+    const liveRoom = rooms.get(room.code);
+    if (!liveRoom || !["RESULT", "SUDDEN_DEATH_RESULT"].includes(liveRoom.phase)) return;
+    advanceRoom(liveRoom);
+    broadcastRoom(liveRoom);
+  }, 3500));
+}
+
 function validCard(value: unknown): value is TabCard {
   if (!value || typeof value !== "object") return false;
   const card = value as TabCard;
@@ -305,6 +358,9 @@ function validCard(value: unknown): value is TabCard {
 function removePlayer(room: GameRoom, socketId: string): void {
   const departing = room.players.find((player) => player.socketId === socketId);
   if (!departing) return;
+  const disconnectTimer = disconnectTimers.get(departing.id);
+  if (disconnectTimer) clearTimeout(disconnectTimer);
+  disconnectTimers.delete(departing.id);
   room.players = room.players.filter((player) => player.socketId !== socketId);
   room.suddenDeathPlayerIds = room.suddenDeathPlayerIds?.filter((id) => id !== departing.id);
   if (room.players.length === 0) {
@@ -327,33 +383,44 @@ function removePlayer(room: GameRoom, socketId: string): void {
   broadcastRoom(room);
 }
 
+function markDisconnected(room: GameRoom, socketId: string): void {
+  const player = room.players.find((entry) => entry.socketId === socketId);
+  if (!player) return;
+  player.connected = false;
+  if (room.phase === "LOBBY") {
+    disconnectTimers.set(player.id, setTimeout(() => {
+      const liveRoom = rooms.get(room.code);
+      const livePlayer = liveRoom?.players.find((entry) => entry.id === player.id);
+      if (liveRoom && livePlayer && !livePlayer.connected) removePlayer(liveRoom, livePlayer.socketId);
+    }, 90_000));
+  }
+  broadcastRoom(room);
+}
+
 io.on("connection", (socket) => {
-  socket.on("CREATE_ROOM", (payload: { name?: unknown; roundCount?: unknown }, callback?: (data: unknown) => void) => {
+  socket.on("CREATE_ROOM", (payload: { name?: unknown; roundCount?: unknown; selectionSeconds?: unknown }, callback?: (data: unknown) => void) => {
     try {
       const roundCount = [3, 5, 7].includes(Number(payload?.roundCount)) ? (Number(payload.roundCount) as 3 | 5 | 7) : 5;
-      const player: Player = {
-        id: crypto.randomUUID(),
-        socketId: socket.id,
-        name: cleanName(payload?.name),
-        deck: [],
-        usedCardIds: [],
-        locked: false,
-        score: 0,
-      };
+      const selectionSeconds = [30, 45, 60].includes(Number(payload?.selectionSeconds))
+        ? (Number(payload.selectionSeconds) as 30 | 45 | 60)
+        : 45;
+      const player = createPlayer(socket, payload?.name);
+      const crisisPool = shuffle(CRISES).slice(0, roundCount);
       const room: GameRoom = {
         code: roomCode(),
+        createdAt: Date.now(),
         hostId: player.id,
         roundCount,
-        selectionSeconds: 30,
+        selectionSeconds,
         currentRound: 0,
         phase: "LOBBY",
         players: [player],
-        crisisPool: [],
-        remainingCrises: [],
+        crisisPool,
+        remainingCrises: shuffle(crisisPool),
       };
       rooms.set(room.code, room);
       socket.join(room.code);
-      callback?.({ ok: true, playerId: player.id, room: roomView(room, player.id) });
+      callback?.({ ok: true, playerId: player.id, sessionToken: player.sessionToken, room: roomView(room, player.id) });
       broadcastRoom(room);
     } catch (error) {
       callback?.({ ok: false, error: error instanceof Error ? error.message : "Could not create room." });
@@ -364,24 +431,72 @@ io.on("connection", (socket) => {
     try {
       const code = typeof payload?.code === "string" ? payload.code.trim().toUpperCase() : "";
       const room = rooms.get(code);
-      if (!room) throw new Error("Room not found.");
-      if (room.phase !== "LOBBY") throw new Error("This match has already started.");
-      if (room.players.length >= 4) throw new Error("This room is full.");
-      const player: Player = {
-        id: crypto.randomUUID(),
-        socketId: socket.id,
-        name: cleanName(payload?.name),
-        deck: [],
-        usedCardIds: [],
-        locked: false,
-        score: 0,
-      };
+      if (!room) throw new Error("That room doesn't exist.");
+      if (room.phase !== "LOBBY") throw new Error("That match already started.");
+      if (room.players.length >= 6) throw new Error("Lobby full. Maximum 6 players.");
+      const player = createPlayer(socket, payload?.name);
+      if (room.players.some((entry) => entry.name.toLowerCase() === player.name.toLowerCase())) {
+        throw new Error("Someone in this room already has that name.");
+      }
       room.players.push(player);
       socket.join(code);
-      callback?.({ ok: true, playerId: player.id, room: roomView(room, player.id) });
+      callback?.({ ok: true, playerId: player.id, sessionToken: player.sessionToken, room: roomView(room, player.id) });
       broadcastRoom(room);
     } catch (error) {
       callback?.({ ok: false, error: error instanceof Error ? error.message : "Could not join room." });
+    }
+  });
+
+  socket.on("RESUME_SESSION", (payload: { code?: unknown; sessionToken?: unknown }, callback?: (data: unknown) => void) => {
+    try {
+      const code = typeof payload?.code === "string" ? payload.code.trim().toUpperCase() : "";
+      const token = typeof payload?.sessionToken === "string" ? payload.sessionToken : "";
+      const room = rooms.get(code);
+      const player = room?.players.find((entry) => entry.sessionToken === token);
+      if (!room || !player) throw new Error("That room session expired.");
+      player.socketId = socket.id;
+      player.connected = true;
+      const disconnectTimer = disconnectTimers.get(player.id);
+      if (disconnectTimer) clearTimeout(disconnectTimer);
+      disconnectTimers.delete(player.id);
+      socket.join(room.code);
+      callback?.({ ok: true, playerId: player.id, sessionToken: player.sessionToken, room: roomView(room, player.id) });
+      broadcastRoom(room);
+    } catch (error) {
+      callback?.({ ok: false, error: error instanceof Error ? error.message : "Could not restore session." });
+    }
+  });
+
+  socket.on("CLAIM_AVATAR", (avatarId: unknown) => {
+    try {
+      const room = roomForSocket(socket);
+      if (!room || room.phase !== "LOBBY") throw new Error("Avatars can only be chosen in the lobby.");
+      const player = playerForSocket(room, socket);
+      if (typeof avatarId !== "string" || !AVATAR_IDS.includes(avatarId as AvatarId)) {
+        throw new Error("Choose a valid avatar.");
+      }
+      if (room.players.some((entry) => entry.id !== player.id && entry.avatarId === avatarId)) {
+        throw new Error("Too slow. Pick another.");
+      }
+      player.avatarId = avatarId as AvatarId;
+      broadcastRoom(room);
+    } catch (error) {
+      emitError(socket, error);
+    }
+  });
+
+  socket.on("START_TAB_SELECTION", () => {
+    try {
+      const room = roomForSocket(socket);
+      if (!room || room.phase !== "LOBBY") throw new Error("Tab selection cannot start now.");
+      const player = playerForSocket(room, socket);
+      if (player.id !== room.hostId) throw new Error("Only the host can start tab picking.");
+      if (room.players.length < 2) throw new Error("Need at least 2 players.");
+      if (room.players.some((entry) => !entry.avatarId)) throw new Error("Everyone must choose an avatar.");
+      room.phase = "TAB_SELECTION";
+      broadcastRoom(room);
+    } catch (error) {
+      emitError(socket, error);
     }
   });
 
@@ -408,10 +523,10 @@ io.on("connection", (socket) => {
       if (player.id !== room.hostId || room.phase !== "LOBBY") {
         throw new Error("Only the host can change selection time.");
       }
-      if (![15, 30, 45, 60].includes(Number(seconds))) {
-        throw new Error("Selection time must be 15, 30, 45, or 60 seconds.");
+      if (![30, 45, 60].includes(Number(seconds))) {
+        throw new Error("Selection time must be 30, 45, or 60 seconds.");
       }
-      room.selectionSeconds = Number(seconds) as 15 | 30 | 45 | 60;
+      room.selectionSeconds = Number(seconds) as 30 | 45 | 60;
       broadcastRoom(room);
     } catch (error) {
       emitError(socket, error);
@@ -421,45 +536,18 @@ io.on("connection", (socket) => {
   socket.on("SUBMIT_DECK", (cards: unknown) => {
     try {
       const room = roomForSocket(socket);
-      if (!room || room.phase !== "LOBBY") throw new Error("Decks can only be submitted in the lobby.");
+      if (!room || room.phase !== "TAB_SELECTION") throw new Error("Decks can only be finalized during tab selection.");
       const player = playerForSocket(room, socket);
+      if (player.deckFinalized) throw new Error("Your deck is already locked.");
       if (!Array.isArray(cards) || cards.length !== room.roundCount || !cards.every(validCard)) {
         throw new Error(`Your deck must contain ${room.roundCount} legal cards.`);
       }
+      if (new Set(cards.map((card) => card.id)).size !== cards.length) {
+        throw new Error("Every card must have a unique ID.");
+      }
       player.deck = cards;
-      broadcastRoom(room);
-    } catch (error) {
-      emitError(socket, error);
-    }
-  });
-
-  socket.on("START_GAME", () => {
-    try {
-      const room = roomForSocket(socket);
-      if (!room) throw new Error("Room not found.");
-      const player = playerForSocket(room, socket);
-      if (player.id !== room.hostId || room.phase !== "LOBBY") throw new Error("Only the host can start.");
-      if (room.players.length < 2) throw new Error("At least two players are required.");
-      if (room.players.some((entry) => entry.deck.length !== room.roundCount)) throw new Error("Everyone must forge a deck first.");
-      room.crisisPool = shuffle(CRISES).slice(0, room.roundCount);
-      room.remainingCrises = [...room.crisisPool];
-      room.phase = "CRISIS_PREVIEW";
-      broadcastRoom(room);
-    } catch (error) {
-      emitError(socket, error);
-    }
-  });
-
-  socket.on("BEGIN_BATTLE", () => {
-    try {
-      const room = roomForSocket(socket);
-      if (!room) throw new Error("Room not found.");
-      const player = playerForSocket(room, socket);
-      if (player.id !== room.hostId || room.phase !== "CRISIS_PREVIEW") throw new Error("Only the host can begin.");
-      room.currentRound = 1;
-      room.currentCrisis = room.remainingCrises.shift();
-      room.phase = "SELECTING";
-      startSelectionTimer(room);
+      player.deckFinalized = true;
+      if (room.players.every((entry) => entry.deckFinalized)) scheduleMatchIntro(room);
       broadcastRoom(room);
     } catch (error) {
       emitError(socket, error);
@@ -498,20 +586,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("NEXT_ROUND", () => {
-    try {
-      const room = roomForSocket(socket);
-      if (!room) throw new Error("Room not found.");
-      const player = playerForSocket(room, socket);
-      if (player.id !== room.hostId) throw new Error("Only the host can continue.");
-      if (!["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase)) throw new Error("The battle is not ready to continue.");
-      advanceRoom(room);
-      broadcastRoom(room);
-    } catch (error) {
-      emitError(socket, error);
-    }
-  });
-
   socket.on("DEV_FORCE_TIE", () => {
     try {
       const room = roomForSocket(socket);
@@ -527,17 +601,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("ENTER_REHAB", () => {
-    try {
-      const room = roomForSocket(socket);
-      if (!room || room.phase !== "GAME_OVER") throw new Error("Finish the match first.");
-      room.phase = "TAB_REHAB";
-      broadcastRoom(room);
-    } catch (error) {
-      emitError(socket, error);
-    }
-  });
-
   socket.on("LEAVE_ROOM", () => {
     const room = roomForSocket(socket);
     if (!room) return;
@@ -547,7 +610,7 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     const room = roomForSocket(socket);
-    if (room) removePlayer(room, socket.id);
+    if (room) markDisconnected(room, socket.id);
   });
 });
 

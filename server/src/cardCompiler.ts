@@ -121,6 +121,7 @@ export function fallbackCard(tab: BrowserTab): TabCard {
     abilityName,
     abilityDescription,
     roast,
+    sourceType: tab.tabId < 0 ? "synthetic" : "real",
     browserContext: {
       pinned: tab.pinned,
       audible: tab.audible,

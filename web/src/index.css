@@ -1,27 +1,59 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;700;800;900&display=swap");
 
 :root {
   font-family: Inter, system-ui, sans-serif;
-  color: #f5f3ff;
-  background: #090713;
+  color: var(--text-primary);
+  background: var(--bg-void);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --purple: #9b5cff;
-  --pink: #ff4fbc;
-  --yellow: #ffd84d;
-  --muted: #a8a2bb;
-  --panel: rgba(22, 18, 39, 0.92);
-  --line: #35304b;
+  --bg-void: #070A08;
+  --bg-deep: #0B100D;
+  --bg-panel: #101712;
+  --bg-panel-raised: #151F18;
+  --green-900: #102A1A;
+  --green-700: #1F5A32;
+  --green-500: #3E8E4C;
+  --green-300: #75B86B;
+  --moss: #7F8F45;
+  --gold-700: #A47D1B;
+  --gold-500: #D7A92F;
+  --gold-300: #F1D36B;
+  --red-800: #6E1515;
+  --red-600: #A82727;
+  --red-400: #E04B3F;
+  --text-primary: #E9F1E8;
+  --text-muted: #9BAB9D;
+  --border-subtle: rgba(160,190,165,0.18);
+  --glow-green: rgba(79,190,104,0.45);
+  --glow-gold: rgba(223,180,62,0.50);
+  --glow-red: rgba(220,55,55,0.45);
+  --purple: var(--green-500);
+  --pink: var(--gold-500);
+  --yellow: var(--gold-300);
+  --red: var(--red-400);
+  --muted: var(--text-muted);
+  --panel: rgba(16, 23, 18, 0.94);
+  --line: var(--border-subtle);
+}
+
+h1, h2, .brand, .room-code, .current-crisis h2, .sudden-banner h2, .winner-screen h1, .rehab h1 {
+  font-family: Cinzel, Georgia, serif;
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background:
-  radial-gradient(circle at 10% 10%, rgba(155, 92, 255, .15), transparent 32rem),
-  radial-gradient(circle at 90% 80%, rgba(255, 79, 188, .1), transparent 28rem),
-  #090713; }
+  radial-gradient(circle at 12% 10%, rgba(62, 142, 76, .2), transparent 30rem),
+  radial-gradient(circle at 88% 80%, rgba(127, 143, 69, .12), transparent 28rem),
+  linear-gradient(rgba(4,8,5,.4), rgba(4,8,5,.92)),
+  #070a08; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .45; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
 h1, h2, h3, p { margin-top: 0; }
 h1, h2, h3 { line-height: 1.05; }
 img { max-width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

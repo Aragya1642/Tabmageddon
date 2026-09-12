@@ -144,7 +144,10 @@ export function resolveBattle(
 
   const bestScore = Math.max(...scores.map((score) => score.finalScore));
   const tiedPlayerIds = scores.filter((score) => score.finalScore === bestScore).map((score) => score.playerId);
-  const winnerId = tiedPlayerIds.length === 1 ? tiedPlayerIds[0] : undefined;
+  const tabClashWinnerId = !isSuddenDeath && tiedPlayerIds.length > 1
+    ? chooseRandom(tiedPlayerIds, random)
+    : undefined;
+  const winnerId = tiedPlayerIds.length === 1 ? tiedPlayerIds[0] : tabClashWinnerId;
 
-  return { crisis, scores, winnerId, tiedPlayerIds, isSuddenDeath };
+  return { crisis, scores, winnerId, tiedPlayerIds, tabClashWinnerId, isSuddenDeath };
 }

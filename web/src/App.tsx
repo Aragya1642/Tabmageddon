@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { io } from "socket.io-client";
+import { AvatarSprite, type AvatarPose } from "./AvatarSprite";
+import { AVATARS } from "./avatars";
 import { CardView } from "./CardView";
 import { DEMO_TABS } from "./demoTabs";
-import { closeLiveTab, importLiveTabs } from "./extensionBridge";
-import type { BrowserTab, Player, Room, TabCard } from "./types";
+import { closeLiveTab, importLiveTabs, pingExtension } from "./extensionBridge";
+import type { BrowserTab, Crisis, Player, Room, TabCard } from "./types";
 import "./App.css";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL
@@ -13,8 +15,19 @@ const socket = io(SERVER_URL);
 interface RoomReply {
   ok: boolean;
   playerId?: string;
+  sessionToken?: string;
   room?: Room;
   error?: string;
+}
+
+const SESSION_KEY = "tabmaggedon-session";
+
+function crisisRule(crisis: Crisis): string {
+  return `${crisis.direction === "HIGH" ? "Highest" : "Lowest"} ${crisis.stat.toUpperCase()} wins.`;
+}
+
+function isRealCard(card: TabCard): boolean {
+  return card.sourceType !== "synthetic" && card.tabId >= 0;
 }
 
 function playerName(room: Room, id?: string): string {
@@ -36,15 +49,35 @@ function App() {
   const [error, setError] = useState("");
   const [deckOpen, setDeckOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [rehabOpen, setRehabOpen] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     const update = (nextRoom: Room) => setRoom(nextRoom);
     const showError = (message: string) => setError(message);
+    const resume = () => {
+      const stored = window.localStorage.getItem(SESSION_KEY);
+      if (!stored) return;
+      try {
+        const session = JSON.parse(stored) as { code: string; sessionToken: string };
+        setReconnecting(true);
+        socket.emit("RESUME_SESSION", session, (reply: RoomReply) => {
+          setReconnecting(false);
+          if (reply.ok) acceptRoom(reply);
+          else window.localStorage.removeItem(SESSION_KEY);
+        });
+      } catch {
+        window.localStorage.removeItem(SESSION_KEY);
+      }
+    };
     socket.on("ROOM_UPDATED", update);
     socket.on("ERROR", showError);
+    socket.on("connect", resume);
+    if (socket.connected) resume();
     return () => {
       socket.off("ROOM_UPDATED", update);
       socket.off("ERROR", showError);
+      socket.off("connect", resume);
     };
   }, []);
 
@@ -69,6 +102,9 @@ function App() {
     setError("");
     setPlayerId(reply.playerId);
     setRoom(reply.room);
+    if (reply.sessionToken) {
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify({ code: reply.room.code, sessionToken: reply.sessionToken }));
+    }
   }
 
   function goHome() {
@@ -77,7 +113,9 @@ function App() {
     setPlayerId("");
     setDeckOpen(false);
     setCopied(false);
+    setRehabOpen(false);
     setError("");
+    window.localStorage.removeItem(SESSION_KEY);
   }
 
   return (
@@ -89,18 +127,20 @@ function App() {
           {room && <button className="room-pill" onClick={() => void copyRoomCode()}>ROOM <b>{room.code}</b> <span>{copied ? "COPIED!" : "COPY"}</span></button>}
         </div>
       </header>
+      {reconnecting && <div className="reconnect-overlay">RECONNECTING TO THE ARENA…</div>}
       {error && <button className="error-banner" onClick={() => setError("")}>{error} ×</button>}
       {!room && <Landing onCreate={acceptRoom} onJoin={acceptRoom} />}
       {room?.phase === "LOBBY" && currentPlayer && <Lobby room={room} me={currentPlayer} />}
-      {room?.phase === "CRISIS_PREVIEW" && <CrisisPreview room={room} playerId={playerId} />}
+      {room?.phase === "TAB_SELECTION" && currentPlayer && <DeckBuilder room={room} me={currentPlayer} />}
+      {room?.phase === "MATCH_INTRO" && <MatchIntro room={room} />}
       {room && currentPlayer && ["SELECTING", "SUDDEN_DEATH_SELECTING"].includes(room.phase) && (
         <Battle room={room} me={currentPlayer} />
       )}
       {room && ["RESULT", "SUDDEN_DEATH_RESULT"].includes(room.phase) && (
-        <Result room={room} playerId={playerId} />
+        <Result room={room} />
       )}
-      {room?.phase === "GAME_OVER" && <GameOver room={room} />}
-      {room?.phase === "TAB_REHAB" && currentPlayer && <TabRehab me={currentPlayer} onError={setError} />}
+      {room?.phase === "GAME_OVER" && !rehabOpen && <GameOver room={room} onRehab={() => setRehabOpen(true)} />}
+      {room?.phase === "GAME_OVER" && rehabOpen && currentPlayer && <TabRehab me={currentPlayer} onError={setError} onHome={goHome} />}
       {deckOpen && currentPlayer && <DeckOverlay player={currentPlayer} onClose={() => setDeckOpen(false)} />}
     </main>
   );
@@ -124,102 +164,187 @@ function Landing({ onCreate, onJoin }: { onCreate: (reply: RoomReply) => void; o
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [roundCount, setRoundCount] = useState<3 | 5 | 7>(5);
+  const [selectionSeconds, setSelectionSeconds] = useState<30 | 45 | 60>(45);
+  const [panel, setPanel] = useState<"create" | "join">();
+  const [rulebook, setRulebook] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [extensionReady, setExtensionReady] = useState<boolean>();
+  const validName = name.trim().length >= 2 && name.trim().length <= 18;
+
+  useEffect(() => {
+    void pingExtension().then(setExtensionReady);
+  }, []);
+
+  if (rulebook) {
+    return (
+      <section className="panel rulebook">
+        <button className="back-button" onClick={() => setRulebook(false)}>← BACK</button>
+        <p className="eyebrow">CORRUPTED BROWSER MANUAL</p>
+        <h1>HOW TO SURVIVE</h1>
+        <div className="rules-grid">
+          <article><b>01</b><h3>ENTER THE LOBBY</h3><p>Create a room, invite up to five victims, and claim a unique fighter.</p></article>
+          <article><b>02</b><h3>BUILD FOR THE POOL</h3><p>Study every possible crisis, import real tabs, then forge one card per round.</p></article>
+          <article><b>03</b><h3>LOCK YOUR FATE</h3><p>Choose one unused card. You can change it until you lock—then there are no takebacks.</p></article>
+          <article><b>04</b><h3>SURVIVE THE SCORE</h3><p>Stats, category counters, abilities, and bounded server luck decide each battle.</p></article>
+          <article><b>05</b><h3>BREAK THE TIE</h3><p>A round tie triggers Tab Clash. A final match tie unleashes Sudden Death.</p></article>
+          <article><b>06</b><h3>ENTER REHAB</h3><p>Keep your bad decisions or explicitly close the real tabs that deserve oblivion.</p></article>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="landing panel">
       <p className="eyebrow">YOUR TABS. YOUR DECK. YOUR PROBLEM.</p>
-      <h1>The browser apocalypse is <span>multiplayer.</span></h1>
-      <p className="lede">Turn your actual open tabs into balanced battle cards, destroy your friends, then clean up the wreckage.</p>
-      <div className="entry-grid">
-        <div>
-          <label>YOUR NAME<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Tab warrior" maxLength={20} /></label>
-          <label>ROUNDS
-            <select value={roundCount} onChange={(event) => setRoundCount(Number(event.target.value) as 3 | 5 | 7)}>
-              <option value={3}>3 — Quick</option>
-              <option value={5}>5 — Standard</option>
-              <option value={7}>7 — Long</option>
-            </select>
-          </label>
-          <button className="primary" disabled={!name.trim()} onClick={() => socket.emit("CREATE_ROOM", { name, roundCount }, onCreate)}>CREATE GAME</button>
-        </div>
-        <div className="join-box">
-          <span>OR JOIN THE CHAOS</span>
-          <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={4} />
-          <button disabled={!name.trim() || code.length !== 4} onClick={() => socket.emit("JOIN_ROOM", { name, code }, onJoin)}>JOIN GAME</button>
-        </div>
+      <h1>TAB<span>MAGGEDON</span></h1>
+      <p className="lede">Your tabs have survived long enough.</p>
+      <div className="landing-actions">
+        <button className={panel === "create" ? "primary" : ""} onClick={() => setPanel(panel === "create" ? undefined : "create")}>CREATE GAME</button>
+        <button className={panel === "join" ? "primary" : ""} onClick={() => setPanel(panel === "join" ? undefined : "join")}>JOIN GAME</button>
       </div>
+      {panel && (
+        <div className="entry-panel">
+          <label>DISPLAY NAME<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Tab warrior" maxLength={18} /></label>
+          {panel === "create" ? (
+            <>
+              <label>ROUNDS<span className="segmented">{([3, 5, 7] as const).map((count) => <button key={count} className={roundCount === count ? "active" : ""} onClick={() => setRoundCount(count)}>{count}</button>)}</span><small>You'll forge one card per round.</small></label>
+              <label>ROUND TIMER<span className="segmented">{([30, 45, 60] as const).map((seconds) => <button key={seconds} className={selectionSeconds === seconds ? "active" : ""} onClick={() => setSelectionSeconds(seconds)}>{seconds}s</button>)}</span></label>
+              <button className="primary wide" disabled={!validName || creating} onClick={() => {
+                setCreating(true);
+                socket.emit("CREATE_ROOM", { name, roundCount, selectionSeconds }, (reply: RoomReply) => {
+                  setCreating(false);
+                  onCreate(reply);
+                });
+              }}>{creating ? "OPENING THE GATES…" : "OPEN THE GATES"}</button>
+            </>
+          ) : (
+            <>
+              <label>ROOM CODE<input value={code} onChange={(event) => setCode(event.target.value.replace(/\s/g, "").toUpperCase())} onKeyDown={(event) => {
+                if (event.key === "Enter" && validName && code.length >= 4) socket.emit("JOIN_ROOM", { name, code }, onJoin);
+              }} placeholder="ABCD" maxLength={6} /></label>
+              <button className="primary wide" disabled={!validName || code.length < 4} onClick={() => socket.emit("JOIN_ROOM", { name, code }, onJoin)}>ENTER THE ARENA</button>
+            </>
+          )}
+        </div>
+      )}
+      <button className="text-button" onClick={() => setRulebook(true)}>RULEBOOK</button>
+      <p className={`extension-chip ${extensionReady ? "ready" : ""}`}>
+        {extensionReady === undefined ? "CHECKING EXTENSION…" : extensionReady ? "EXTENSION READY" : "EXTENSION NOT CONNECTED"}
+      </p>
       <p className="privacy">🔒 Only the tabs you choose become cards.</p>
     </section>
   );
 }
 
 function Lobby({ room, me }: { room: Room; me: Player }) {
-  const everyoneReady = room.players.length >= 2 && room.players.every((player) => player.deck.length === room.roundCount);
   const isHost = me.id === room.hostId;
+  const canStart = room.players.length >= 2 && room.players.every((player) => player.avatarId);
+  const [copied, setCopied] = useState(false);
+  async function copyCode() {
+    await navigator.clipboard.writeText(room.code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  }
   return (
-    <section className="panel">
-      <div className="section-heading">
-        <div><p className="eyebrow">ASSEMBLE YOUR SURVIVORS</p><h2>Lobby <span>{room.code}</span></h2></div>
-        <div className="lobby-settings">
-          <div className="round-select">
-            <label>Rounds</label>
-            <select disabled={!isHost || room.players.some((player) => player.deck.length > 0)} value={room.roundCount} onChange={(event) => socket.emit("SET_ROUND_COUNT", Number(event.target.value))}>
-              <option value={3}>3</option><option value={5}>5</option><option value={7}>7</option>
-            </select>
+    <section className="panel lobby-screen">
+      <div className="lobby-top">
+        <div>
+          <p className="eyebrow">THE GATES ARE OPEN</p>
+          <h2>ASSEMBLE YOUR SURVIVORS</h2>
+        </div>
+        <span className="player-count">{room.players.length}/6 PLAYERS</span>
+      </div>
+      <div className="lobby-layout">
+        <aside className="room-panel">
+          <small>ROOM CODE</small>
+          <button className="room-code" onClick={() => void copyCode()}>{room.code}<span>{copied ? "COPIED" : "COPY"}</span></button>
+          <p>Share this code with victims.</p>
+          <dl><div><dt>ROUNDS</dt><dd>{room.roundCount}</dd></div><div><dt>TIMER</dt><dd>{room.selectionSeconds}s</dd></div></dl>
+          <div className="mini-roster">
+            {room.players.map((player) => (
+              <span key={player.id} className={!player.connected ? "offline" : ""}>
+                <AvatarSprite avatarId={player.avatarId} size={22} pose="idle" /> {player.name}{player.id === room.hostId ? " ♛" : ""}
+              </span>
+            ))}
           </div>
-          <div className="round-select">
-            <label>Pick timer</label>
-            <select disabled={!isHost} value={room.selectionSeconds} onChange={(event) => socket.emit("SET_SELECTION_TIME", Number(event.target.value))}>
-              <option value={15}>15 sec</option><option value={30}>30 sec</option><option value={45}>45 sec</option><option value={60}>60 sec</option>
-            </select>
+        </aside>
+        <div className="avatar-stage">
+          <h3>CHOOSE YOUR FIGHTER</h3>
+          <div className="avatar-grid">
+            {AVATARS.map((avatar) => {
+              const owner = room.players.find((player) => player.avatarId === avatar.id);
+              const mine = owner?.id === me.id;
+              return (
+                <button key={avatar.id} disabled={Boolean(owner && !mine)} className={`avatar-card ${owner ? "taken" : ""} ${mine ? "mine" : ""}`} onClick={() => socket.emit("CLAIM_AVATAR", avatar.id)}>
+                  <span className="avatar-portrait"><AvatarSprite avatarId={avatar.id} size={72} pose={mine ? "ready" : "idle"} /></span>
+                  <strong>{avatar.name}</strong><small>{avatar.role}</small>
+                  {mine && <em>YOU</em>}
+                  {owner && !mine && <em>✓ TAKEN BY {owner.name}</em>}
+                </button>
+              );
+            })}
           </div>
         </div>
+        <CrisisPool crises={room.crisisPool} compact />
       </div>
-      <div className="player-list">
-        {room.players.map((player) => (
-          <div key={player.id} className="player-row">
-            <span className="avatar">{player.name.charAt(0).toUpperCase()}</span>
-            <strong>{player.name}{player.id === room.hostId ? " 👑" : ""}</strong>
-            <span className={player.deck.length === room.roundCount ? "ready" : "waiting"}>
-              {player.deck.length === room.roundCount ? `✓ DECK READY` : `FORGING 0/${room.roundCount}`}
-            </span>
-          </div>
-        ))}
-      </div>
-      {me.deck.length === 0 ? <TabPicker required={room.roundCount} /> : (
-        <div className="deck-ready">
-          <h3>Your deck is forged</h3>
-          <div className="card-grid">{me.deck.map((card) => <CardView key={card.id} card={card} compact />)}</div>
-        </div>
-      )}
-      {isHost && (
+      {isHost ? (
         <div className="host-actions">
-          <button className="primary" disabled={!everyoneReady} onClick={() => socket.emit("START_GAME")}>REVEAL THE APOCALYPSE</button>
-          {import.meta.env.DEV && <button disabled={!everyoneReady} onClick={() => socket.emit("DEV_FORCE_TIE")}>DEV: FORCE TIE</button>}
+          <button className="primary big-action" disabled={!canStart} onClick={() => socket.emit("START_TAB_SELECTION")}>START TAB PICKING</button>
+          {!canStart && <p>{room.players.length < 2 ? "Need at least one more victim." : "Every player must claim a fighter."}</p>}
         </div>
-      )}
-      {!isHost && everyoneReady && <p className="center-note">Waiting for the host to start…</p>}
+      ) : <p className="center-note">Waiting for the host to unleash tab picking…</p>}
     </section>
   );
 }
 
-function TabPicker({ required }: { required: number }) {
+function CrisisPool({ crises, compact = false }: { crises: Room["crisisPool"]; compact?: boolean }) {
+  return (
+    <aside className={`crisis-pool ${compact ? "compact-pool" : ""}`}>
+      <p className="eyebrow">POSSIBLE CRISES</p>
+      <h3>You know what's coming.<br />You don't know when.</h3>
+      <div>{crises.map((crisis) => (
+        <article key={crisis.id}>
+          <span>⚠</span>
+          <strong>{crisis.name}</strong>
+          <em>{crisis.description}</em>
+          <small>{crisis.stat.toUpperCase()} · {crisis.direction}</small>
+        </article>
+      ))}</div>
+    </aside>
+  );
+}
+
+function DeckBuilder({ room, me }: { room: Room; me: Player }) {
+  const required = room.roundCount;
   const [tabs, setTabs] = useState<BrowserTab[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [status, setStatus] = useState("");
   const [forging, setForging] = useState(false);
+  const [forgedCards, setForgedCards] = useState<TabCard[]>();
+  const [poolOpen, setPoolOpen] = useState(false);
+  const liveCount = tabs.filter((tab) => tab.tabId >= 0).length;
 
-  async function loadLive() {
+  async function loadLive(fillShortage = false) {
     setStatus("Asking the extension for your tabs…");
     try {
       const liveTabs = await importLiveTabs();
       const liveDomains = new Set(liveTabs.map((tab) => tab.domain));
       const shortage = Math.max(0, required - liveTabs.length);
-      const presets = shuffled(DEMO_TABS.filter((tab) => !liveDomains.has(tab.domain))).slice(0, shortage);
+      const presets = fillShortage
+        ? shuffled(DEMO_TABS.filter((tab) => !liveDomains.has(tab.domain))).slice(0, shortage)
+        : [];
       const nextTabs = [...liveTabs, ...presets];
       setTabs(nextTabs);
-      setSelected((current) => current.filter((id) => nextTabs.some((tab) => tab.tabId === id)).slice(0, required));
+      setSelected((current) => {
+        const kept = current.filter((id) => nextTabs.some((tab) => tab.tabId === id));
+        if (!fillShortage) return kept.slice(0, required);
+        const extras = nextTabs.map((tab) => tab.tabId).filter((id) => !kept.includes(id));
+        return [...kept, ...extras].slice(0, required);
+      });
       setStatus(shortage > 0
-        ? `${liveTabs.length} live tab${liveTabs.length === 1 ? "" : "s"} found. Added ${presets.length} random preset${presets.length === 1 ? "" : "s"} so you can play.`
+        ? fillShortage
+          ? `${liveTabs.length} live tabs found. Forged ${presets.length} placeholder${presets.length === 1 ? "" : "s"} so you can play.`
+          : `${liveTabs.length} live tabs found. Need ${shortage} more, or forge the rest.`
         : `${liveTabs.length} live tabs found. List refreshed.`);
     } catch (loadError) {
       setStatus(loadError instanceof Error ? loadError.message : "Could not import tabs.");
@@ -252,7 +377,7 @@ function TabPicker({ required }: { required: number }) {
       });
       const result = await response.json() as { cards?: TabCard[]; source?: string; error?: string };
       if (!response.ok || !result.cards) throw new Error(result.error || "Card compilation failed.");
-      socket.emit("SUBMIT_DECK", result.cards);
+      setForgedCards(result.cards);
       setStatus(result.source === "gemini" ? "Deck forged by Gemini." : "Deck forged by deterministic fallback.");
     } catch (forgeError) {
       setStatus(forgeError instanceof Error ? forgeError.message : "Could not forge deck.");
@@ -261,16 +386,45 @@ function TabPicker({ required }: { required: number }) {
     }
   }
 
+  if (me.deckFinalized) {
+    return (
+      <section className="panel deck-waiting">
+        <p className="eyebrow">DECK LOCKED</p>
+        <h1>NO TAKEBACKS.</h1>
+        <div className="card-grid">{me.deck.map((card) => <CardView key={card.id} card={card} compact />)}</div>
+        <h3>WAITING FOR THE REST OF THE LOBBY</h3>
+        <div className="ready-roster">{room.players.map((player) => <span key={player.id} className={player.deckFinalized ? "ready" : ""}>{player.deckFinalized ? "✓" : "…"} {player.name}</span>)}</div>
+      </section>
+    );
+  }
+
+  if (forgedCards) {
+    return (
+      <section className="panel deck-review">
+        <div className="section-heading"><div><p className="eyebrow">FORGE COMPLETE</p><h2>REVIEW YOUR DECK</h2></div><b>{forgedCards.length} CARDS / {required} ROUNDS</b></div>
+        <button onClick={() => setPoolOpen(true)}>VIEW CRISIS POOL</button>
+        <div className="card-grid">{forgedCards.map((card) => <CardView key={card.id} card={card} />)}</div>
+        <div className="review-actions"><button onClick={() => setForgedCards(undefined)}>BACK TO TABS</button><button className="primary big-action" onClick={() => socket.emit("SUBMIT_DECK", forgedCards)}>FINALIZE MY CARDS</button></div>
+        {poolOpen && <PoolModal room={room} onClose={() => setPoolOpen(false)} />}
+      </section>
+    );
+  }
+
   return (
-    <div className="tab-picker">
+    <section className="panel tab-build">
       <div className="picker-heading">
-        <div><h3>Select your fighters</h3><p>Pick weird tabs. Balanced does not mean normal.</p></div>
+        <div><p className="eyebrow">BUILD YOUR DECK</p><h2>SELECT YOUR FIGHTERS</h2><p>Pick wisely. Every card burns after one use.</p></div>
         <b>{selected.length} / {required}</b>
       </div>
       <div className="import-actions">
-        <button className="primary" disabled={forging} onClick={loadLive}>{tabs.length === 0 ? "IMPORT MY TABS" : "REFRESH LIVE TABS"}</button>
-        <button disabled={forging} onClick={loadDemo}>USE PRESET TABS</button>
+        <button className="primary" disabled={forging} onClick={() => void loadLive(false)}>{tabs.length === 0 ? "IMPORT CURRENT TABS" : "REFRESH TABS"}</button>
+        {liveCount > 0 && liveCount < required && (
+          <button disabled={forging} onClick={() => void loadLive(true)}>IMPORT CURRENT & FORGE THE REST</button>
+        )}
+        <button disabled={forging} onClick={loadDemo}>FORGE A FULL DEMO SET</button>
+        <button onClick={() => setPoolOpen(true)}>CRISIS POOL · {room.crisisPool.length}</button>
       </div>
+      <p className="privacy">Your tab list stays tied to your game session. We only send what is needed to forge the cards you choose.</p>
       {status && <p className="status">{status}</p>}
       <div className="tab-list">
         {tabs.map((tab) => (
@@ -281,61 +435,86 @@ function TabPicker({ required }: { required: number }) {
           </button>
         ))}
       </div>
-      {tabs.length > 0 && <button className="primary forge-button" disabled={selected.length !== required || forging} onClick={forge}>{forging ? "FORGING…" : "FORGE MY DECK"}</button>}
-    </div>
+      {tabs.length > 0 && <button className="primary forge-button" disabled={selected.length !== required || forging} onClick={forge}>{forging ? "WEAPONIZING YOUR TABS…" : "FORGE MY CARDS"}</button>}
+      {poolOpen && <PoolModal room={room} onClose={() => setPoolOpen(false)} />}
+    </section>
   );
 }
 
-function CrisisPreview({ room, playerId }: { room: Room; playerId: string }) {
+function PoolModal({ room, onClose }: { room: Room; onClose: () => void }) {
   return (
-    <section className="panel">
-      <p className="eyebrow">THIS MATCH'S APOCALYPSE</p>
-      <h2>You know what's coming.<br /><span>You just don't know when.</span></h2>
-      <div className="crisis-grid">
-        {room.crisisPool.map((crisis) => (
-          <div className="crisis-card" key={crisis.id}><span>⚠</span><h3>{crisis.name}</h3></div>
-        ))}
-      </div>
-      {room.hostId === playerId ? <button className="primary big-action" onClick={() => socket.emit("BEGIN_BATTLE")}>BEGIN TABMAGGEDON</button> : <p className="center-note">The host is deciding when civilization ends…</p>}
-    </section>
+    <div className="modal-backdrop" onClick={onClose}><div className="pool-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={onClose}>×</button><p className="center-note">Build for the pool, not the order.</p><CrisisPool crises={room.crisisPool} /></div></div>
   );
+}
+
+function MatchIntro({ room }: { room: Room }) {
+  return <section className="panel match-intro"><div className="gate">◈</div><p className="eyebrow">ENTER THE RUINS</p><h1>TABMAGGEDON</h1><h2>{room.roundCount} ROUNDS. ONE SURVIVOR.</h2></section>;
+}
+
+function battlePose(room: Room, player: Player): AvatarPose {
+  if (room.lastResult) {
+    if (player.id === room.lastResult.winnerId) return "attack";
+    if (room.lastResult.tiedPlayerIds.includes(player.id)) return "hit";
+    return "lose";
+  }
+  if (player.locked) return "ready";
+  return "idle";
 }
 
 function Battle({ room, me }: { room: Room; me: Player }) {
   const sudden = room.phase === "SUDDEN_DEATH_SELECTING";
   const participating = !sudden || room.suddenDeathPlayerIds?.includes(me.id);
   const availableCards = me.deck;
+  const lockedCount = room.players.filter((player) => player.locked && (!sudden || room.suddenDeathPlayerIds?.includes(player.id))).length;
+  const activeCount = room.players.filter((player) => !sudden || room.suddenDeathPlayerIds?.includes(player.id)).length;
   return (
-    <section className="panel battle">
+    <section className={`panel battle arena-shell ${sudden ? "sudden-arena" : ""}`}>
       <Scoreboard room={room} />
-      {sudden ? (
-        <div className="sudden-banner">
-          <p className="eyebrow">☠ SUDDEN DEATH ☠</p>
-          <h2>Choose before fate chooses the crisis.</h2>
-          <div className="crisis-options">{room.suddenDeathOptions?.map((crisis) => <span key={crisis.id}>{crisis.name}</span>)}</div>
+      <div className="battle-arena">
+        <div className="arena-players">
+          {room.players.map((player, index) => (
+            <div className={`battle-avatar slot-${index + 1} ${player.locked ? "locked" : ""}`} key={player.id}>
+              <AvatarSprite avatarId={player.avatarId} size={78} pose={battlePose(room, player)} />
+              <strong>{player.name}{player.id === me.id ? " · YOU" : ""}</strong>
+              <small>{player.score} {player.score === 1 ? "WIN" : "WINS"} · {player.locked ? "🔒 LOCKED" : sudden && !room.suddenDeathPlayerIds?.includes(player.id) ? "SPECTATING" : "CHOOSING"}</small>
+            </div>
+          ))}
         </div>
-      ) : room.currentCrisis && (
-        <div className="current-crisis">
-          <p className="eyebrow">🚨 ROUND {room.currentRound} / {room.roundCount}</p>
-          <h2>{room.currentCrisis.name}</h2>
+        <div className="arena-center">
+          {sudden ? (
+            <div className="sudden-banner">
+              <p className="eyebrow">☠ SUDDEN DEATH ☠</p>
+              <h2>THREE CRISES. ONE WILL FIRE.</h2>
+              <div className="crisis-options">{room.suddenDeathOptions?.map((crisis) => <span key={crisis.id}>{crisis.name}<small>{crisis.description}</small><em>{crisis.stat.toUpperCase()} · {crisis.direction}</em></span>)}</div>
+            </div>
+          ) : room.currentCrisis && (
+            <div className="current-crisis" key={`${room.currentRound}-${room.currentCrisis.id}`}>
+              <p className="eyebrow">🚨 ROUND {room.currentRound} / {room.roundCount}</p>
+              <h2>{room.currentCrisis.name}</h2>
+              <p>{room.currentCrisis.description}</p>
+              <small>{room.currentCrisis.stat.toUpperCase()} · {room.currentCrisis.direction}</small>
+            </div>
+          )}
+          <SelectionTimer deadline={room.selectionDeadline} />
         </div>
-      )}
-      <SelectionTimer deadline={room.selectionDeadline} />
+      </div>
       <div className="lock-status">
+        <span className="locked-count">{lockedCount}/{activeCount} PLAYERS LOCKED</span>
         {room.players.filter((player) => !sudden || room.suddenDeathPlayerIds?.includes(player.id)).map((player) => (
           <span key={player.id} className={player.locked ? "locked" : ""}>{player.name} {player.locked ? "🔒 LOCKED" : "Choosing…"}</span>
         ))}
       </div>
+      {me.autoLocked && <p className="center-note">The arena chose for you.</p>}
       {!participating ? <p className="center-note">The tied leaders are fighting. Enjoy the wreckage.</p> : (
         <>
-          <div className="section-heading"><div><h3>Choose one tab</h3><p>Your choice stays hidden until everyone locks.</p></div></div>
-          <div className="card-grid">
+          <div className="hand-heading"><div><h3>YOUR HAND</h3><p>Your choice stays hidden until everyone locks.</p></div><b>{me.locked ? "LOCKED. NO TAKEBACKS." : "SELECT ONE UNUSED CARD"}</b></div>
+          <div className="card-grid battle-hand">
             {availableCards.map((card) => {
               const used = !sudden && me.usedCardIds.includes(card.id);
               return <CardView key={card.id} card={card} selected={me.selectedCardId === card.id} used={used} disabled={used || me.locked} onClick={() => socket.emit("SELECT_CARD", card.id)} />;
             })}
           </div>
-          <button className="primary big-action" disabled={!me.selectedCardId || me.locked} onClick={() => socket.emit("LOCK_IN")}>{me.locked ? "LOCKED IN 🔒" : "LOCK IN"}</button>
+          <button className="primary big-action" disabled={!me.selectedCardId || me.locked} onClick={() => socket.emit("LOCK_IN")}>{me.locked ? "LOCKED IN 🔒" : me.selectedCardId ? "LOCK IN" : "SELECT A CARD"}</button>
         </>
       )}
     </section>
@@ -359,74 +538,95 @@ function Scoreboard({ room }: { room: Room }) {
   return <div className="scoreboard">{room.players.map((player) => <span key={player.id}><b>{player.score}</b>{player.name}</span>)}</div>;
 }
 
-function Result({ room, playerId }: { room: Room; playerId: string }) {
+function Result({ room }: { room: Room }) {
   const result = room.lastResult;
   if (!result) return null;
   const isTie = result.tiedPlayerIds.length > 1;
-  const tiedNames = result.tiedPlayerIds.map((id) => playerName(room, id)).join(" & ");
   const title = isTie
-    ? result.isSuddenDeath ? "SUDDEN DEATH TIE — RUN IT BACK" : `${tiedNames} TIE — EACH GETS A POINT`
+    ? result.isSuddenDeath ? "SUDDEN DEATH TIE — AGAIN." : `${playerName(room, result.tabClashWinnerId)} WINS TAB CLASH`
     : `${playerName(room, result.winnerId)} WINS`;
   return (
     <section className="panel result-screen">
       <Scoreboard room={room} />
       <p className="eyebrow">{result.isSuddenDeath ? "☠ SUDDEN DEATH RESULT" : `ROUND ${room.currentRound} RESULT`}</p>
       <h2>{result.crisis.name}</h2>
-      <p className="crisis-rule">{result.crisis.description}</p>
+      <p className="crisis-rule">{crisisRule(result.crisis)}</p>
       <h1>{title}</h1>
       <div className="result-grid">
         {result.scores.map((score) => {
           const tied = isTie && result.tiedPlayerIds.includes(score.playerId);
-          const won = !isTie && score.playerId === result.winnerId;
+          const won = score.playerId === result.winnerId;
           return (
           <div className={`result-column ${won ? "winner-column" : ""} ${tied ? "tie-column" : ""}`} key={score.playerId}>
-            <h3>{playerName(room, score.playerId)}{tied && <span className="tie-badge">TIE{result.isSuddenDeath ? "" : " +1"}</span>}</h3>
+            <h3>{playerName(room, score.playerId)}{tied && <span className="tie-badge">{result.isSuddenDeath ? "TIED" : score.playerId === result.tabClashWinnerId ? "TAB CLASH +1" : "TAB CLASH"}</span>}</h3>
             <CardView card={score.card} compact />
             <div className="math-row"><span>Crisis score</span><b>{score.crisisScore}</b></div>
-            <div className="math-row"><span>Type matchup</span><b>{score.typeModifier >= 0 ? "+" : ""}{score.typeModifier}</b></div>
+            <div className="math-row"><span>Category matchup</span><b>{score.typeModifier >= 0 ? "+" : ""}{score.typeModifier}</b></div>
             <div className="math-row"><span>{score.abilityNote}</span><b>{score.abilityModifier >= 0 ? "+" : ""}{score.abilityModifier}</b></div>
             <div className="math-row"><span>Luck</span><b>{score.luck >= 0 ? "+" : ""}{score.luck}</b></div>
             <div className="math-row total"><span>FINAL</span><b>{score.finalScore}</b></div>
           </div>
         )})}
       </div>
-      {room.hostId === playerId ? <button className="primary big-action" onClick={() => socket.emit("NEXT_ROUND")}>{room.currentRound >= room.roundCount || result.isSuddenDeath ? "SETTLE THE SCORE" : "NEXT CRISIS"}</button> : <p className="center-note">Waiting for the host…</p>}
+      <p className="center-note">{room.currentRound >= room.roundCount || result.isSuddenDeath ? "The arena is settling the score…" : "NEXT CRISIS IN 3…"}</p>
     </section>
   );
 }
 
-function GameOver({ room }: { room: Room }) {
+function GameOver({ room, onRehab }: { room: Room; onRehab: () => void }) {
+  const standings = [...room.players].sort((left, right) => right.score - left.score);
   return (
     <section className="panel winner-screen">
       <p className="eyebrow">THE BROWSER HAS SPOKEN</p>
-      <div className="trophy">🏆</div>
-      <h1>{playerName(room, room.winnerId)} survived<br /><span>TABMAGGEDON</span></h1>
-      <Scoreboard room={room} />
-      <button className="primary big-action" onClick={() => socket.emit("ENTER_REHAB")}>ENTER TAB REHAB</button>
+      <h1><span>{playerName(room, room.winnerId)}</span><br />TABMAGGEDON CHAMPION</h1>
+      <div className="podium">
+        {standings.slice(0, 3).map((player, index) => (
+          <div className={`podium-slot place-${index + 1}`} key={player.id}>
+            {index === 0 && <span className="crown">♛</span>}
+            <span className="podium-avatar"><AvatarSprite avatarId={player.avatarId} size={index === 0 ? 110 : 86} pose={index === 0 ? "winner" : "lose"} /></span>
+            <strong>{player.name}</strong><small>{player.score} ROUND {player.score === 1 ? "WIN" : "WINS"}</small>
+            <b>{index + 1}</b>
+          </div>
+        ))}
+      </div>
+      {standings.length > 3 && (
+        <div className="fallen">
+          {standings.slice(3).map((player) => (
+            <span key={player.id}><AvatarSprite avatarId={player.avatarId} size={36} pose="lose" /> {player.name}</span>
+          ))}
+        </div>
+      )}
+      <button className="primary big-action" onClick={onRehab}>ENTER TAB REHAB</button>
     </section>
   );
 }
 
-function TabRehab({ me, onError }: { me: Player; onError: (message: string) => void }) {
+function TabRehab({ me, onError, onHome }: { me: Player; onError: (message: string) => void; onHome: () => void }) {
   const [decisions, setDecisions] = useState<Record<string, "kept" | "closed">>({});
   const [extraCards, setExtraCards] = useState<TabCard[]>([]);
   const [loadingExtras, setLoadingExtras] = useState(false);
   const [extraStatus, setExtraStatus] = useState("");
-  const allCards = useMemo(() => [...me.deck, ...extraCards], [extraCards, me.deck]);
+  const [complete, setComplete] = useState(false);
+  const gameCards = useMemo(() => me.deck.filter(isRealCard), [me.deck]);
+  const allCards = useMemo(() => [...gameCards, ...extraCards], [extraCards, gameCards]);
   const remaining = useMemo(() => allCards.filter((card) => !decisions[card.id]).length, [allCards, decisions]);
+  const gameRemaining = useMemo(() => gameCards.filter((card) => !decisions[card.id]).length, [decisions, gameCards]);
   const closedCount = useMemo(
     () => allCards.filter((card) => decisions[card.id] === "closed").length,
     [allCards, decisions],
   );
-  const closedPercent = Math.round((closedCount / allCards.length) * 100);
-  const pendingPercent = 100 - closedPercent;
+  const keptCount = useMemo(() => allCards.filter((card) => decisions[card.id] === "kept").length, [allCards, decisions]);
+  const total = Math.max(1, allCards.length);
+  const closedPercent = Math.round((closedCount / total) * 100);
+  const keptPercent = Math.round((keptCount / total) * 100);
+  const pendingPercent = Math.max(0, 100 - closedPercent - keptPercent);
 
   async function loadRemainingTabs() {
     setLoadingExtras(true);
     setExtraStatus("Importing the rest of your browser and asking Gemini to sort it…");
     try {
       const liveTabs = await importLiveTabs();
-      const gameTabIds = new Set(me.deck.map((card) => card.tabId));
+      const gameTabIds = new Set(gameCards.map((card) => card.tabId));
       const remainingTabs = liveTabs.filter((tab) => !gameTabIds.has(tab.tabId));
       if (remainingTabs.length === 0) {
         setExtraCards([]);
@@ -468,32 +668,51 @@ function TabRehab({ me, onError }: { me: Player; onError: (message: string) => v
       await closeLiveTab(card.tabId, card.originalUrl);
       setDecisions((current) => ({ ...current, [card.id]: "closed" }));
     } catch (closeError) {
-      onError(closeError instanceof Error ? closeError.message : "Could not close that tab.");
+      const message = closeError instanceof Error ? closeError.message : "Could not close that tab.";
+      if (/no tab|already|changed/i.test(message)) {
+        setDecisions((current) => ({ ...current, [card.id]: "closed" }));
+        onError("That tab was already gone.");
+        return;
+      }
+      onError(message);
     }
   }
+
+  if (complete) {
+    return (
+      <section className="panel rehab rehab-complete">
+        <p className="eyebrow">RECOVERY REPORT</p>
+        <h1>YOU CLOSED {closedCount} TABS</h1>
+        <h2>AND KEPT {keptCount} BAD {keptCount === 1 ? "DECISION" : "DECISIONS"}.</h2>
+        <div className="rehab-final-actions"><button className="primary" onClick={onHome}>PLAY AGAIN</button><button onClick={onHome}>RETURN HOME</button></div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel rehab">
       <p className="eyebrow">POST-GAME CLEANUP</p>
       <h1>TAB REHAB</h1>
-      <p className="lede">The battle is over. Do these tabs deserve to survive?</p>
-      <p>{remaining} decisions remaining. Nothing closes without your click.</p>
+      <p className="lede">Time to deal with what survived.</p>
+      <p>{remaining} loaded decisions remaining. Nothing closes without your click.</p>
       <button className="primary load-remaining" disabled={loadingExtras} onClick={() => void loadRemainingTabs()}>
         {loadingExtras ? "GEMINI IS SORTING…" : extraCards.length > 0 ? "REFRESH REMAINING TABS" : "LOAD ALL REMAINING TABS"}
       </button>
       {extraStatus && <p className="status">{extraStatus}</p>}
       <div className="cleanup-progress">
-        <div><span>PENDING / OPEN</span><b>{pendingPercent}%</b><span>CLOSED</span><b>{closedPercent}%</b></div>
-        <div className="cleanup-track"><span style={{ width: `${closedPercent}%` }} /></div>
+        <div><span>CLOSED</span><b>{closedCount} · {closedPercent}%</b><span>KEPT</span><b>{keptCount} · {keptPercent}%</b><span>UNDECIDED</span><b>{remaining} · {pendingPercent}%</b></div>
+        <div className="cleanup-track"><span className="closed-segment" style={{ width: `${closedPercent}%` }} /><span className="kept-segment" style={{ width: `${keptPercent}%` }} /></div>
       </div>
       <h3 className="rehab-section-title">GAME TABS</h3>
       <div className="rehab-list">
-        {me.deck.map((card) => (
-          <div className={`rehab-row ${decisions[card.id] ?? ""}`} key={card.id}>
-            <CardView card={card} compact />
-            {decisions[card.id] ? <strong className="decision">{decisions[card.id] === "closed" ? "CLOSED ✕" : "KEPT ✓"}</strong> : (
-              <div><button onClick={() => setDecisions((current) => ({ ...current, [card.id]: "kept" }))}>KEEP</button><button className="danger" onClick={() => void close(card)}>CLOSE TAB</button></div>
-            )}
-          </div>
+        {gameCards.map((card) => (
+          <RehabRow
+            key={card.id}
+            card={card}
+            decision={decisions[card.id]}
+            onKeep={() => setDecisions((current) => ({ ...current, [card.id]: "kept" }))}
+            onClose={() => void close(card)}
+          />
         ))}
       </div>
       {extraCards.length > 0 && (
@@ -504,26 +723,49 @@ function TabRehab({ me, onError }: { me: Player; onError: (message: string) => v
               const usefulness = 10 - card.stats.uselessness;
               const recommendation = usefulness <= 3 ? "CONSIDER CLOSING" : usefulness >= 7 ? "LIKELY USEFUL" : "REVIEW";
               return (
-                <div className={`rehab-row ${decisions[card.id] ?? ""}`} key={card.id}>
-                  <div className="rehab-card-info">
-                    <CardView card={card} compact />
-                    <div className="gemini-sort">
-                      <span>{card.type}</span>
-                      <b>{usefulness}/9 USEFULNESS</b>
-                      <em>{recommendation}</em>
-                    </div>
-                  </div>
-                  {decisions[card.id] ? <strong className="decision">{decisions[card.id] === "closed" ? "CLOSED ✕" : "KEPT ✓"}</strong> : (
-                    <div><button onClick={() => setDecisions((current) => ({ ...current, [card.id]: "kept" }))}>KEEP</button><button className="danger" onClick={() => void close(card)}>CLOSE TAB</button></div>
-                  )}
-                </div>
+                <RehabRow
+                  key={card.id}
+                  card={card}
+                  decision={decisions[card.id]}
+                  note={`${card.type} · ${usefulness}/9 USEFULNESS · ${recommendation}`}
+                  onKeep={() => setDecisions((current) => ({ ...current, [card.id]: "kept" }))}
+                  onClose={() => void close(card)}
+                />
               );
             })}
           </div>
         </>
       )}
-      {remaining === 0 && <h2>Your browser is now slightly less doomed.</h2>}
+      <button className="primary big-action" disabled={gameRemaining > 0} onClick={() => setComplete(true)}>FINISH REHAB</button>
+      {gameCards.length === 0 && <p className="center-note">Your deck used demo tabs, so there are no game tabs to close.</p>}
     </section>
+  );
+}
+
+function RehabRow({
+  card,
+  decision,
+  note,
+  onKeep,
+  onClose,
+}: {
+  card: TabCard;
+  decision?: "kept" | "closed";
+  note?: string;
+  onKeep: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className={`rehab-row ${decision ?? ""}`}>
+      {card.faviconUrl ? <img src={card.faviconUrl} alt="" /> : <span className="favicon-fallback">◈</span>}
+      <div className="rehab-copy">
+        <strong>{card.originalTitle || card.cardName}</strong>
+        <small>{card.domain}{card.sourceType === "synthetic" ? " · FORGED" : ""}{note ? ` · ${note}` : ""}</small>
+      </div>
+      {decision ? <strong className="decision">{decision === "closed" ? "CLOSED ✕" : "KEPT ✓"}</strong> : (
+        <div><button className="close-button" onClick={onClose}>CLOSE</button><button className="keep-button" onClick={onKeep}>KEEP</button></div>
+      )}
+    </div>
   );
 }
 

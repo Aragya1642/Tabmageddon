@@ -3,6 +3,7 @@ import type { BrowserTab } from "./types";
 interface BridgeResponse {
   source?: string;
   requestId?: string;
+  type?: string;
   ok?: boolean;
   tabs?: BrowserTab[];
   error?: string;
@@ -24,6 +25,25 @@ function requestExtension<T>(type: string, payload: Record<string, unknown> = {}
     };
     window.addEventListener("message", listener);
     window.postMessage({ source: "TABMAGGEDON_WEB", type, requestId, ...payload }, window.location.origin);
+  });
+}
+
+export async function pingExtension(timeoutMs = 800): Promise<boolean> {
+  return new Promise((resolve) => {
+    const requestId = crypto.randomUUID();
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener("message", listener);
+      resolve(false);
+    }, timeoutMs);
+    const listener = (event: MessageEvent<BridgeResponse>) => {
+      if (event.source !== window || event.data?.source !== "TABMAGGEDON_EXTENSION") return;
+      if (event.data.requestId && event.data.requestId !== requestId && event.data.type !== "READY") return;
+      window.clearTimeout(timeout);
+      window.removeEventListener("message", listener);
+      resolve(true);
+    };
+    window.addEventListener("message", listener);
+    window.postMessage({ source: "TABMAGGEDON_WEB", type: "PING", requestId }, window.location.origin);
   });
 }
 

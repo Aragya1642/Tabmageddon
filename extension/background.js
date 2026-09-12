@@ -11,6 +11,11 @@ function safeUrl(input) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || message.source !== "TABMAGGEDON_CONTENT") return false;
 
+  if (message.type === "PING") {
+    sendResponse({ ok: true });
+    return false;
+  }
+
   if (message.type === "GET_TABS") {
     chrome.tabs.query({}).then((tabs) => {
       const result = tabs
@@ -47,7 +52,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       return chrome.tabs.remove(tabId);
     }).then(() => sendResponse({ ok: true }))
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
+      .catch((error) => {
+        if (String(error?.message).toLowerCase().includes("no tab with id")) {
+          sendResponse({ ok: true, alreadyClosed: true });
+        } else {
+          sendResponse({ ok: false, error: error.message });
+        }
+      });
     return true;
   }
 

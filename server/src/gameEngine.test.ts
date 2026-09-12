@@ -35,8 +35,11 @@ test("battle resolution produces one synchronized breakdown per player", () => {
     return {
       id: `p${index}`,
       socketId: `s${index}`,
+      sessionToken: `token-${index}`,
       name: `Player ${index}`,
+      connected: true,
       deck: [card],
+      deckFinalized: true,
       usedCardIds: [],
       selectedCardId: card.id,
       locked: true,
@@ -52,6 +55,7 @@ test("battle resolution produces one synchronized breakdown per player", () => {
   };
   const room: GameRoom = {
     code: "TEST",
+    createdAt: 1,
     hostId: players[0]!.id,
     roundCount: 3,
     selectionSeconds: 30,
@@ -68,7 +72,7 @@ test("battle resolution produces one synchronized breakdown per player", () => {
   assert.ok(result.scores.every((score) => Number.isFinite(score.finalScore)));
 });
 
-test("ordinary exact ties keep every top scorer", () => {
+test("ordinary exact ties use a server-selected Tab Clash winner", () => {
   const players: Player[] = tabs.map((tab, index) => {
     const card = {
       ...fallbackCard(tab),
@@ -79,8 +83,11 @@ test("ordinary exact ties keep every top scorer", () => {
     return {
       id: `tie-${index}`,
       socketId: `tie-socket-${index}`,
+      sessionToken: `tie-token-${index}`,
       name: `Tie ${index}`,
+      connected: true,
       deck: [card],
+      deckFinalized: true,
       usedCardIds: [],
       selectedCardId: card.id,
       locked: true,
@@ -96,6 +103,7 @@ test("ordinary exact ties keep every top scorer", () => {
   };
   const room: GameRoom = {
     code: "TIE1",
+    createdAt: 1,
     hostId: players[0]!.id,
     roundCount: 3,
     selectionSeconds: 30,
@@ -107,6 +115,7 @@ test("ordinary exact ties keep every top scorer", () => {
     currentCrisis: crisis,
   };
   const result = resolveBattle(room, crisis, players, false, () => 0.5);
-  assert.equal(result.winnerId, undefined);
+  assert.ok(result.winnerId);
+  assert.equal(result.winnerId, result.tabClashWinnerId);
   assert.deepEqual(result.tiedPlayerIds, players.map((player) => player.id));
 });

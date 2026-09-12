@@ -1,64 +1,50 @@
-@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
 
 :root {
-  font-family: Oswald, ui-sans-serif, system-ui, sans-serif;
-  font-size: 18px;
-  font-weight: 500;
+  font-family: "Press Start 2P", monospace;
+  font-size: 11px;
+  font-weight: 400;
   color: var(--text-primary);
   background: var(--bg-void);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --bg-void: #F3E6CC;
-  --bg-deep: #E8D5B4;
-  --bg-panel: #FFF8EA;
-  --bg-panel-raised: #F7E8C8;
+  --bg-void: #FFFDF8;
+  --bg-deep: #F6F1E8;
+  --bg-panel: #FFFFFF;
+  --bg-panel-raised: #FFFDF8;
   --green-900: #5C6434;
   --green-700: #6F7840;
   --green-500: #8C964F;
   --green-300: #A8B26A;
   --moss: #8C964F;
-  --gold-700: #C9A01A;
-  --gold-500: #E0B51C;
-  --gold-300: #FCCB25;
+  --gold-700: #8C964F;
+  --gold-500: #8C964F;
+  --gold-300: #8C964F;
   --red-800: #6E141C;
   --red-600: #931A23;
   --red-400: #B3222D;
   --blue: #4566BD;
-  --brown: #755041;
+  --brown: #5A3D32;
   --terracotta: #BF7759;
-  --ink: #3A2218;
-  --text-primary: #3A2218;
-  --text-muted: #755041;
-  --border-subtle: rgba(117, 80, 65, 0.28);
-  --glow-green: rgba(140, 150, 79, 0.4);
-  --glow-gold: rgba(252, 203, 37, 0.55);
+  --ink: #1C1210;
+  --text-primary: #1C1210;
+  --text-muted: #5A3D32;
+  --border-subtle: rgba(90, 61, 50, 0.24);
+  --glow-green: rgba(140, 150, 79, 0.45);
+  --glow-gold: rgba(140, 150, 79, 0.45);
   --glow-red: rgba(147, 26, 35, 0.4);
-  --purple: var(--blue);
-  --pink: var(--gold-500);
-  --yellow: var(--gold-300);
+  --purple: var(--green-500);
+  --pink: var(--red-600);
+  --yellow: var(--red-600);
   --red: var(--red-600);
   --muted: var(--text-muted);
-  --panel: rgba(255, 248, 234, 0.94);
+  --panel: rgba(255, 255, 255, 0.96);
   --line: var(--border-subtle);
 }
 
-.brand, .landing > h1, .winner-screen h1, .rehab h1, .match-intro h1, .deck-waiting h1 {
-  font-family: "Press Start 2P", Oswald, sans-serif;
+html, body, button, input, select, textarea {
+  font-family: "Press Start 2P", monospace;
   image-rendering: pixelated;
-  letter-spacing: 0;
-  line-height: 1.35;
-}
-
-h2, h3, .eyebrow, .room-code, .card-type-label, .used-stamp, .lede, p, label, small, .ability, .roast, .math-row, .center-note, .crisis-rule {
-  font-family: Oswald, ui-sans-serif, sans-serif;
-}
-
-.num, .stats b, .scoreboard b, .selection-timer b, .math-row b, .podium-slot > b, .picker-heading > b,
-.segmented button, .player-count, .rules-grid article > b, .room-panel dd {
-  font-family: Oswald, ui-sans-serif, sans-serif;
-  font-weight: 700;
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
 }
 
 button:disabled { cursor: not-allowed; opacity: .45; }
@@ -66,14 +52,14 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background:
-  radial-gradient(circle at 12% 10%, rgba(252, 203, 37, .22), transparent 28rem),
-  radial-gradient(circle at 88% 80%, rgba(140, 150, 79, .16), transparent 26rem),
-  #F3E6CC; }
+  radial-gradient(circle at 12% 10%, rgba(147, 26, 35, .08), transparent 28rem),
+  radial-gradient(circle at 88% 80%, rgba(140, 150, 79, .12), transparent 26rem),
+  #FFFDF8; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 h1, h2, h3, p { margin-top: 0; }
-h1, h2, h3 { line-height: 1.3; }
+h1, h2, h3 { line-height: 1.5; }
 img { max-width: 100%; }
 
 @media (prefers-reduced-motion: reduce) {

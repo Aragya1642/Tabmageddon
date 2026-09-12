@@ -47,7 +47,7 @@ function PixelField() {
     size: 3 + Math.round(Math.random() * 7),
     duration: `${7 + Math.random() * 11}s`,
     delay: `${Math.random() * -10}s`,
-    color: ["#931A23", "#755041", "#8C964F", "#4566BD", "#FCCB25", "#BF7759"][index % 6],
+    color: ["#931A23", "#8C964F", "#FFFFFF", "#5A3D32", "#BF7759"][index % 5],
   })), []);
   return (
     <div className="pixel-field" aria-hidden>
@@ -592,7 +592,7 @@ function SelectionTimer({ deadline }: { deadline?: number }) {
     return () => window.clearInterval(interval);
   }, [deadline]);
   if (!deadline) return null;
-  return <div className={`selection-timer ${seconds <= 5 ? "urgent" : ""}`}><b>{seconds}</b><span>SECONDS TO LOCK</span></div>;
+  return <div className={`selection-timer ${seconds <= 5 ? "urgent" : ""}`}><b>{seconds}</b><span>SEC TO<br />LOCK</span></div>;
 }
 
 function Scoreboard({ room }: { room: Room }) {

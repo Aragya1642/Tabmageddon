@@ -17,7 +17,6 @@ export const AVATAR_IDS = [
   "scavenger",
   "imp",
   "avatar6",
-  "avatar7",
   "avatar8",
   "avatar9",
   "avatar10",

@@ -11,7 +11,7 @@
 
 :root {
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 22px;
   font-weight: 400;
   color: var(--ink);
   background: var(--bg-void);
@@ -45,7 +45,7 @@
   --purple: var(--mario-moss);
   --muted: var(--mario-brown);
   --text-muted: var(--mario-brown);
-  --panel: rgba(255, 255, 255, 0.96);
+  --panel: rgba(255, 253, 248, 0.93);
   --line: rgba(117, 80, 65, 0.28);
   --glow-gold: rgba(252, 203, 37, 0.55);
   --glow-green: rgba(140, 150, 79, 0.45);
@@ -63,8 +63,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background:
-  radial-gradient(circle at 12% 10%, rgba(147, 26, 35, .08), transparent 28rem),
-  radial-gradient(circle at 88% 80%, rgba(140, 150, 79, .12), transparent 26rem),
+  linear-gradient(rgba(255, 253, 248, .62), rgba(246, 241, 232, .78)),
+  url("/all-bg.png") center / cover no-repeat fixed,
   #FFFDF8; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }

@@ -5,3 +5,11 @@ dist/
 *.log
 web/.env.local
 server/.env
+
+# Local/editor and one-off source assets
+.cursor/
+/.render-debug.*/
+/Arena/
+/avatars/
+/all-bg.png
+tabmaggedon-redesign-spec.md

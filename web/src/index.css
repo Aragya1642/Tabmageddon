@@ -8,33 +8,37 @@
   background: var(--bg-void);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --bg-void: #070A08;
-  --bg-deep: #0B100D;
-  --bg-panel: #101712;
-  --bg-panel-raised: #151F18;
-  --green-900: #102A1A;
-  --green-700: #1F5A32;
-  --green-500: #3E8E4C;
-  --green-300: #75B86B;
-  --moss: #7F8F45;
-  --gold-700: #A47D1B;
-  --gold-500: #D7A92F;
-  --gold-300: #F1D36B;
-  --red-800: #6E1515;
-  --red-600: #A82727;
-  --red-400: #E04B3F;
-  --text-primary: #E9F1E8;
-  --text-muted: #9BAB9D;
-  --border-subtle: rgba(160,190,165,0.18);
-  --glow-green: rgba(79,190,104,0.45);
-  --glow-gold: rgba(223,180,62,0.50);
-  --glow-red: rgba(220,55,55,0.45);
-  --purple: var(--green-500);
+  --bg-void: #F3E6CC;
+  --bg-deep: #E8D5B4;
+  --bg-panel: #FFF8EA;
+  --bg-panel-raised: #F7E8C8;
+  --green-900: #5C6434;
+  --green-700: #6F7840;
+  --green-500: #8C964F;
+  --green-300: #A8B26A;
+  --moss: #8C964F;
+  --gold-700: #C9A01A;
+  --gold-500: #E0B51C;
+  --gold-300: #FCCB25;
+  --red-800: #6E141C;
+  --red-600: #931A23;
+  --red-400: #B3222D;
+  --blue: #4566BD;
+  --brown: #755041;
+  --terracotta: #BF7759;
+  --ink: #3A2218;
+  --text-primary: #3A2218;
+  --text-muted: #755041;
+  --border-subtle: rgba(117, 80, 65, 0.28);
+  --glow-green: rgba(140, 150, 79, 0.4);
+  --glow-gold: rgba(252, 203, 37, 0.55);
+  --glow-red: rgba(147, 26, 35, 0.4);
+  --purple: var(--blue);
   --pink: var(--gold-500);
   --yellow: var(--gold-300);
-  --red: var(--red-400);
+  --red: var(--red-600);
   --muted: var(--text-muted);
-  --panel: rgba(16, 23, 18, 0.94);
+  --panel: rgba(255, 248, 234, 0.94);
   --line: var(--border-subtle);
 }
 
@@ -62,10 +66,9 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background:
-  radial-gradient(circle at 12% 10%, rgba(62, 142, 76, .16), transparent 30rem),
-  radial-gradient(circle at 88% 80%, rgba(127, 143, 69, .1), transparent 28rem),
-  linear-gradient(rgba(4,8,5,.45), rgba(4,8,5,.92)),
-  #070a08; }
+  radial-gradient(circle at 12% 10%, rgba(252, 203, 37, .22), transparent 28rem),
+  radial-gradient(circle at 88% 80%, rgba(140, 150, 79, .16), transparent 26rem),
+  #F3E6CC; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }

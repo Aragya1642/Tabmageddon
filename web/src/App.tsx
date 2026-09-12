@@ -47,7 +47,7 @@ function PixelField() {
     size: 3 + Math.round(Math.random() * 7),
     duration: `${7 + Math.random() * 11}s`,
     delay: `${Math.random() * -10}s`,
-    color: ["#3e8e4c", "#75b86b", "#f1d36b", "#7f8f45", "#1f5a32"][index % 5],
+    color: ["#931A23", "#755041", "#8C964F", "#4566BD", "#FCCB25", "#BF7759"][index % 6],
   })), []);
   return (
     <div className="pixel-field" aria-hidden>

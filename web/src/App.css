@@ -148,14 +148,15 @@ button.primary { color: #11170f; border: 1px solid #f1d36b; background: linear-g
 .crisis-options span { max-width: 220px; padding: 12px; background: #0d0a17; border-radius: 8px; font-weight: 800; }
 .crisis-options small { display: block; margin-top: 5px; color: var(--muted); font-size: 9px; }
 .result-screen { position: relative; text-align: center; overflow: hidden; }
-.clash-arena { display: flex; justify-content: center; align-items: end; gap: 28px; flex-wrap: wrap; min-height: 220px; margin: 10px 0 28px; }
-.clash-fighter { position: relative; width: 150px; display: grid; justify-items: center; }
+.clash-arena { display: flex; justify-content: center; align-items: end; gap: 48px; flex-wrap: wrap; min-height: 260px; margin: 10px 0 28px; }
+.clash-fighter { position: relative; width: 180px; display: grid; justify-items: center; }
 .clash-fighter.side-left.winner { animation: clash-left .7s ease-out; }
 .clash-fighter.side-right.winner { animation: clash-right .7s ease-out; }
 .clash-fighter.loser { animation: clash-recoil .7s ease-out; }
-.clash-fighter strong { margin-top: 6px; }
-.clash-pops { position: absolute; top: -8px; display: grid; gap: 4px; }
-.clash-pops span { padding: 2px 8px; font-family: Oswald, sans-serif; font-size: 20px; letter-spacing: 1px; animation: pop-score .9s ease-out both; }
+.clash-fighter strong { margin-top: 10px; }
+.clash-pops { position: absolute; top: -6px; right: -8px; display: grid; gap: 4px; z-index: 2; }
+.clash-pops span { padding: 2px 8px; font-family: Oswald, sans-serif; font-size: 20px; letter-spacing: 1px; animation: clash-pop .45s ease-out both; }
+@keyframes clash-pop { 0% { transform: translateY(12px) scale(.6); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
 .clash-pops .good { color: #102a1a; background: #f1d36b; }
 .clash-pops .bad { color: #fff; background: #a82727; }
 @keyframes clash-left { 0% { transform: translateX(-40px); } 45% { transform: translateX(18px) scale(1.08); } 100% { transform: translateX(0); } }

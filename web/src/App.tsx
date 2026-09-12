@@ -625,7 +625,7 @@ function Result({ room, me }: { room: Room; me: Player }) {
           ].filter(Boolean);
           return (
             <div className={`clash-fighter ${won ? "winner" : "loser"} side-${index % 2 === 0 ? "left" : "right"}`} key={score.playerId}>
-              <AvatarSprite avatarId={player?.avatarId} size={128} pose={won ? "attack" : /sabotag/i.test(score.abilityNote) ? "hit" : "lose"} />
+              <AvatarSprite avatarId={player?.avatarId} size={156} pose={won ? "attack" : /sabotag/i.test(score.abilityNote) ? "hit" : "lose"} />
               <strong>{playerName(room, score.playerId)}</strong>
               <div className="clash-pops">
                 {pops.map((pop) => <span key={pop} className={pop.startsWith("-") || pop === "HIT" ? "bad" : "good"}>{pop}</span>)}

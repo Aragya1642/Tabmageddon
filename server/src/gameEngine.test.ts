@@ -1,0 +1,63 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { fallbackCard, normalizeStats } from "./cardCompiler.js";
+import { resolveBattle } from "./gameEngine.js";
+import type { BrowserTab, Crisis, GameRoom, Player } from "./types.js";
+
+const tabs: BrowserTab[] = [
+  { tabId: 1, title: "YouTube - ten hours of coding music", url: "https://youtube.com/watch", domain: "youtube.com" },
+  { tabId: 2, title: "GitHub Pull Request", url: "https://github.com/example", domain: "github.com" },
+];
+
+test("normalization always creates legal twenty-point stats", () => {
+  const stats = normalizeStats({ ram: 99, uselessness: -5, shadiness: 3.4, aura: Number.NaN }, "test");
+  assert.equal(Object.values(stats).reduce((sum, stat) => sum + stat, 0), 20);
+  assert.ok(Object.values(stats).every((stat) => Number.isInteger(stat) && stat >= 1 && stat <= 9));
+});
+
+test("fallback cards are deterministic in mechanics and legal", () => {
+  const first = fallbackCard(tabs[0]!);
+  const second = fallbackCard(tabs[0]!);
+  assert.deepEqual(first.stats, second.stats);
+  assert.equal(first.type, second.type);
+  assert.equal(first.abilityId, second.abilityId);
+  assert.equal(Object.values(first.stats).reduce((sum, stat) => sum + stat, 0), 20);
+});
+
+test("battle resolution produces one synchronized breakdown per player", () => {
+  const players: Player[] = tabs.map((tab, index) => {
+    const card = fallbackCard(tab);
+    return {
+      id: `p${index}`,
+      socketId: `s${index}`,
+      name: `Player ${index}`,
+      deck: [card],
+      usedCardIds: [],
+      selectedCardId: card.id,
+      locked: true,
+      score: 0,
+    };
+  });
+  const crisis: Crisis = {
+    id: "test",
+    name: "Test Crisis",
+    description: "Highest aura wins.",
+    stat: "aura",
+    direction: "HIGH",
+  };
+  const room: GameRoom = {
+    code: "TEST",
+    hostId: players[0]!.id,
+    roundCount: 3,
+    currentRound: 1,
+    phase: "SELECTING",
+    players,
+    crisisPool: [crisis],
+    remainingCrises: [],
+    currentCrisis: crisis,
+  };
+  const result = resolveBattle(room, crisis, players, false, () => 0.5);
+  assert.equal(result.scores.length, 2);
+  assert.ok(result.winnerId);
+  assert.ok(result.scores.every((score) => Number.isFinite(score.finalScore)));
+});

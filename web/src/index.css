@@ -58,6 +58,14 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background:
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+p, small, label, dt, .lede, .center-note, .status, .privacy, .roast, .math-row,
+.math-row span, .ability span, .type-loop, .rules-grid p, .section-heading p,
+.picker-heading p, .host-actions p, .room-panel p, .room-panel small, .room-panel dt,
+.lock-status span, .scoreboard span, .rehab-copy, .rehab-copy small, .gemini-sort,
+.match-intro h2, .result-screen > h2, .avatar-card small, .tab-option small,
+.entry-panel label small, .crisis-pool h3, .crisis-pool article p, .sealed-pool p {
+  color: var(--brown);
+}
 h1, h2, h3, p { margin-top: 0; }
 h1, h2, h3 { line-height: 1.5; }
 img { max-width: 100%; }

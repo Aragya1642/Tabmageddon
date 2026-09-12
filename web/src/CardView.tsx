@@ -14,8 +14,6 @@ interface Props {
   onClick?: () => void;
 }
 
-const TYPE_ICONS = { ENTERTAINMENT: "▶", UTILITY: "⬡", ACADEMIC: "▣", SHOPPING: "◇" };
-
 function shorten(value: string, max = 22): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
@@ -60,7 +58,6 @@ export function CardView({ card, selected, used, disabled, compact, preview, pop
         <div className="card-inner">
           <TypeWatermark type={card.type} />
           <div className="card-topline">
-            <span className="card-type-icon">{TYPE_ICONS[card.type]}</span>
             <span className="card-type-label">{card.type}</span>
           </div>
           <div className="card-art">
@@ -88,7 +85,7 @@ export function CardView({ card, selected, used, disabled, compact, preview, pop
           )}
         </div>
         {popup && <span className={`score-popup ${popup.startsWith("-") ? "bad" : "good"}`}>{popup}</span>}
-        {hit && <span className="sabotage-arrow" aria-hidden>➤</span>}
+        {hit && <span className="sabotage-arrow" aria-hidden />}
         {used && <span className="used-stamp">USED</span>}
         {compact && !onClick && <span className="inspect-hint">VIEW STATS</span>}
       </button>
